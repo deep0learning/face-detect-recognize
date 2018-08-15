@@ -57,17 +57,19 @@ def args():
                          type=str,help="saved labels file .pkl")
     return parser.parse_args()
 
+def read_img(path_img):
+    img = cv2.imread(path_img)
+    img_org = img
+    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+    img = (img-127.5)*0.0078125
+    return img,img_org
+
+
 
 def compare_img(path1,path2,model_path):
     parm = args()
-    img1 = cv2.imread(path1)
-    img2 = cv2.imread(path2)
-    img_1 = img1
-    img_2 = img2
-    img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2RGB)
-    img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2RGB)
-    img1 = (img1-127.5)*0.0078125
-    img2 = (img2-127.5)*0.0078125
+    img1,img_1 = read_img(path1)
+    img2,img_2 = read_img(path2)
     #model_path = "../models/tf-models/InsightFace_iter-3140"
     img_size = [112,112]
     if config.mx_ :
@@ -125,6 +127,12 @@ def compare_img(path1,path2,model_path):
     cmd = cv2.waitKey(0) & 0xFF
     if cmd == 27 or cmd == ord('q'):
         cv2.destroyAllWindows()
+
+def Img_enhance(image,fgamma=1.5):
+    image_gamma = np.uint8(np.power((np.array(image)/255.0),fgamma)*255.0)
+    cv2.normalize(image_gamma, image_gamma, 0, 255, cv2.NORM_MINMAX)
+    cv2.convertScaleAbs(image_gamma, image_gamma)
+    return image_gamma
 
 if __name__ == "__main__":
     parm = args()
