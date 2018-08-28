@@ -36,18 +36,21 @@ def L2_distance(feature1,feature2,lenth):
     len1 = feature1.shape[0]
     len2 = feature2.shape[0]
     assert len1 ==lenth and len2==lenth
-    mean1 = np.mean(feature1)
-    mean2 = np.mean(feature2)
-    print("feature mean: ",mean1, mean2)
-    f_center1 = feature1-mean1
-    f_center2 = feature2-mean2
-    std1 = np.sum(np.power(f_center1,2))
-    std2 = np.sum(np.power(f_center2,2))
-    std1 = np.sqrt(std1)
-    std2 = np.sqrt(std2)
-    norm1 = f_center1/std1
-    norm2 = f_center2/std2
-    loss =np.sqrt(np.sum(np.power((norm1-norm2),2)))
+    if config.norm:
+        loss = np.sqrt(np.sum(np.power((feature1-feature2),2))/lenth)
+    else:
+        mean1 = np.mean(feature1)
+        mean2 = np.mean(feature2)
+        print("feature mean: ",mean1, mean2)
+        f_center1 = feature1-mean1
+        f_center2 = feature2-mean2
+        std1 = np.sum(np.power(f_center1,2))
+        std2 = np.sum(np.power(f_center2,2))
+        std1 = np.sqrt(std1/lenth)
+        std2 = np.sqrt(std2/lenth)
+        norm1 = f_center1/std1
+        norm2 = f_center2/std2
+        loss =np.sqrt(np.sum(np.power((norm1-norm2),2))/lenth)
     return loss
 
 
@@ -75,13 +78,15 @@ class FaceReg(object):
             #face_m = "../models/sphere/sph20_ms_v7.caffemodel"  #best good
             #face_m = "../models/sphere/sph20_ms_v8.caffemodel"  #the best good
             #face_m = "../models/sphere/sph20_ms_v9.caffemodel"   #fpr is best good
-            #face_m = "../models/sphere/sph20_ms_4v5.caffemodel"  # **the best
+            face_m = "../models/sphere/sph20_ms_4v5.caffemodel"  # **the best
             #face_m = "../models/sphere/sph20_ms_1024v1.caffemodel" #best for m=1
+            #face_m = "../models/sphere/sph20_ms_1024v3.caffemodel"
             #face_m = "../models/sphere/sph_test.caffemodel"
-            face_m = "../models/sphere/sph20_ms_5v2.caffemodel"
-            #face_m = "../models/sphere/sph20_ms_6v3.caffemodel" good for m=1
-            #face_m = "../models/sphere/sph20_ms_8v1.caffemodel"
-            #face_m = "../models/sphere/sph20_ms_8v3.caffemodel" good for m=1
+            #face_m = "../models/sphere/sph20_ms_5v3.caffemodel" #for m=2
+            #face_m = "../models/sphere/sph20_ms_6v4.caffemodel" #for m=2
+            #face_m = "../models/sphere/sph20_ms_6v3.caffemodel" #good for m=1
+            #face_m = "../models/sphere/sph20_ms_8v1.caffemodel"  # for m=2
+            #face_m = "../models/sphere/sph20_ms_8v3.caffemodel" #good for m=1
             #face_p = "../models/sphere/sph_64_model.prototxt"
             #face_m = "../models/sphere/sph64_10811.caffemodel"
             #face_m = "../models/sphere/sph64_ms_v1.caffemodel"
@@ -108,6 +113,8 @@ class FaceReg(object):
             self.face_net.blobs['data'].reshape(1,net_chal,net_h,net_w)
         t = time.time()
         #caffe_img = np.swapaxes(caffe_img,0,2)
+        #np.savetxt("img.txt",(caffe_img[:,:,0]))
+        #print("model",caffe_img[0,1,:])
         caffe_img = np.expand_dims(caffe_img,0)
         caffe_img = np.transpose(caffe_img, (0,3,1,2))
         if config.feature_expand:
@@ -288,7 +295,7 @@ class mx_Face(object):
         sym, arg_params, aux_params = mx.model.load_checkpoint(prefix, epoch_num)
         all_layers = sym.get_internals()
         if config.debug:
-            print("all layers ",all_layers.list_outputs()[-1])
+            print("all layers ",all_layers.list_outputs())
         sym = all_layers[layer+'_output']
         model = mx.mod.Module(symbol=sym, context=ctx, data_names=('data',),label_names = None)
         #model.bind(data_shapes=[('data', (args.batch_size, 3, image_size[0], image_size[1]))], label_shapes=[('softmax_label', (args.batch_size,))])
@@ -299,55 +306,39 @@ class mx_Face(object):
         model.set_params(arg_params, aux_params)
         return model
 
-    def extractfeature_(self,img):
-        img_list = []
-        h_,w_,chal_ = img.shape
-        if h_ !=self.h or w_ !=self.w:
-            img = cv2.resize(img,(self.w,self.h))
-        img = (img-127.5)*0.0078125
-        img = np.transpose(img,(2,0,1))
-        img_flip = np.flip(img,axis=2)
-        #img = np.expand_dims(img,0)
-        img_list.append(img)
-        #img_flip = np.expand_dims(img_flip,0)
-        img_list.append(img_flip)
-        if config.mx_version:
-            data = mx.nd.array(img_list)
-            db = mx.io.DataBatch(data=(data,))
-            self.model_net.forward(db, is_train=False)
-            embedding = self.model_net.get_outputs()[0].asnumpy()
-            features = embedding[0] + embedding[1]
-            features = np.expand_dims(features,0)
-            features = skpro.normalize(features)
-        else: 
-            features = self.model_net.predict(img)
-            #embedding = features[0]
-        if config.debug:
-            print("feature shape ",np.shape(features))
-        #print("features ",features[0,:5])
-        return features[0]
-
     def extractfeature(self,img):
         h_,w_,chal_ = img.shape
         if h_ !=self.h or w_ !=self.w:
             img = cv2.resize(img,(self.w,self.h))
-        img = (img-127.5)*0.0078125
+        #img = (img-127.5)*0.0078125
         img = np.transpose(img,(2,0,1))
-        img = np.expand_dims(img,0)
+        if config.feature_expand:
+            img_list = []
+            img_flip = np.flip(img,axis=2)
+            img_list.append(img)
+            img_list.append(img_flip)
+            img_input = img_list
+        else:
+            img_input = np.expand_dims(img,0)
         if config.mx_version:
-            data = mx.nd.array(img)
+            data = mx.nd.array(img_input)
             db = mx.io.DataBatch(data=(data,))
             self.model_net.forward(db, is_train=False)
             embedding = self.model_net.get_outputs()[0].asnumpy()
-            #embedding = skpro.normalize(embedding)
-            features = embedding 
+            if config.feature_expand:
+                features = embedding[0] + embedding[1]
+                #embedding = skpro.normalize(embedding)
+                _norm=np.linalg.norm(features)
+                features /= _norm
+            else:
+                features = embedding[0]
         else: 
-            features = self.model_net.predict(img)
+            features = self.model_net.predict(img_input)
             #embedding = features[0]
         if config.debug:
             print("feature shape ",np.shape(features))
         #print("features ",features[0,:5])
-        return features[0]
+        return features
 
     def calculateL2(self,feat1,feat2,c_type='euclidean'):
         assert np.shape(feat1)==np.shape(feat2)

@@ -517,7 +517,8 @@ def preprocess(filename):
 #   convert unit8 datatype
     cv2.convertScaleAbs(image_log,image_log)
 #   gamma transform
-    fgamma = 1.5
+    #fgamma = 1.5
+    fgamma = 0.5
     image_gamma = np.uint8(np.power((np.array(image)/255.0),fgamma)*255.0)
     cv2.normalize(image_gamma, image_gamma, 0, 255, cv2.NORM_MINMAX)
     cv2.convertScaleAbs(image_gamma, image_gamma)
@@ -627,7 +628,7 @@ if __name__ == "__main__":
         plt_histgram(txt_file,out_file,hist_max,hist_bin)
     elif cmd_type == 'imgenhance':
         preprocess(img_dir)
-        pil_process(img_dir)
+        #pil_process(img_dir)
     elif cmd_type == 'gen_idimgfrom_dir':
         gen_idimg_from_dir(img_dir,save_dir)
     elif cmd_type == 'gen_filepath_2dir':

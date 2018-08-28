@@ -72,35 +72,63 @@ def write_hdf5(file, data, label_class):
         f['label_class'] = label_class_arr
         f.close()
 
+def read_img(path_img):
+    img = cv2.imread(path_img)
+    img_org = img
+    img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+    img = (img-127.5)*0.0078125
+    return img,img_org
+def save_mat(caffe_img,file_name):
+    print(caffe_img[0,1,:])
+    img_r = np.reshape(caffe_img[:,:,0],(-1,1))
+    img_g = np.reshape(caffe_img[:,:,1],(-1,1))
+    img_b = np.reshape(caffe_img[:,:,2],(-1,1))
+    print("img ",np.shape(img_b))
+    rgb = np.concatenate((img_r,img_g,img_b),axis=1)
+    print(rgb.shape)
+    np.savetxt(file_name,rgb)
+
+def compare_f(p1,p2):
+    f1 = np.loadtxt(p1)
+    f2 = np.loadtxt(p2)
+    print(f1.shape,f2.shape)
+    distance = L2_distance(f1,f2,512)
+    print(distance)
 
 def compare_img(path1,path2,model_path):
     parm = args()
-    img1 = cv2.imread(path1)
-    img2 = cv2.imread(path2)
-    img_1 = img1
-    img_2 = img2
-    img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2RGB)
-    img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2RGB)
-    img1 = (img1-127.5)*0.0078125
-    img2 = (img2-127.5)*0.0078125
+    img1,img_1 = read_img(path1)
+    img2,img_2 = read_img(path2)
     #model_path = "../models/tf-models/InsightFace_iter-3140"
-    img_size = [112,112]
     if config.mx_ :
-        model_path = "../models/mx_models/model"
-        epoch_num = 6
+        model_path = "../models/mx_models/v1_bn/model"
+        epoch_num = 9
         img_size = [112,112]
         FaceModel = mx_Face(model_path,epoch_num,img_size)
     elif config.caffe_use:
         FaceModel = FaceReg(0.7)
     else:
+        img_size = [112,112]
         FaceModel = TF_Face_Reg(model_path,img_size,parm.gpu)
+    def norm_feat(feat):
+        fea_std = np.max(feat)
+        fea_mean = np.min(feat)
+        feat = (feat-fea_mean)/fea_std
+        return feat
     if img1 is not None and img2 is not None:
+        #save_mat(img1,"img1.txt")
         feature_1 = FaceModel.extractfeature(img1)
         feat1 = np.array(feature_1)
+        #np.savetxt("feat1.txt",feat1)
         if config.debug:
             print("first feat1 ",feature_1[:5])
+        #save_mat(img2,"img2.txt")
         feature_2 = FaceModel.extractfeature(img2)
         feat2 = np.array(feature_2)
+        #np.savetxt("feat2.txt",feat2)
+        if config.norm:
+            feat2 = norm_feat(feat2)
+            feat1 = norm_feat(feat1)
         if config.debug:
             print("first feat2 ",feature_2[:5])
         dis_s = FaceModel.calculateL2(feat1,feat2)
@@ -117,18 +145,17 @@ def compare_img(path1,path2,model_path):
             feat = None
             print("read img faild, " + img_path)
         else:
-            img = Img_enhance(img)
+            if config.face_enhance:
+                img = Img_enhance(img)
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
             if config.torch_:
                 img = img*1.0
                 img = img/255
-            else:
+            elif config.caffe_use:
                 img = (img-127.5)*0.0078125
             feat = model_.extractfeature(img)
             if config.norm:
-                fea_std = np.std(feat)
-                fea_mean = np.mean(feat)
-                feat = (feat-fea_mean)/fea_std
+                feat = norm_feat(feat)
         return feat
     feature_1 = extract_f(FaceModel,img_1)
     feat1 = np.array(feature_1)
@@ -350,7 +377,8 @@ class Face_DB(object):
 class Annoy_DB(object):
     def __init__(self,data_dim):
         if config.mx_:
-            self.db = AnnoyIndex(data_dim,metric='euclidean')
+            #self.db = AnnoyIndex(data_dim,metric='euclidean')
+            self.db = AnnoyIndex(data_dim,metric='angular')
         else:
             self.db = AnnoyIndex(data_dim,metric='angular')
     def add_data(self,i,data):
@@ -381,12 +409,18 @@ def Db_test(label_file,db_file,data_file,base_dir,id_dir,dis_dir,base_id):
     elif config.mx_:
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r50-am-lfw/model"
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r34-amf/model"
-        model_path = "../models/mx_models/model"
-        epoch_num = 19
+        model_path = "../models/mx_models/v1_bn/model"
+        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
+        epoch_num = 9 #9
         img_size = [112,112]
         FaceModel = mx_Face(model_path,epoch_num,img_size)
     else:
         FaceModel = FaceReg(0.7)
+    #mkdir save image dir
+    if os.path.exists(dis_dir):
+        pass
+    else:
+        os.makedirs(dis_dir)
     parm = args()
     img_size = [112,96]
     DB_FT = Annoy_DB(config.feature_lenth)
@@ -407,19 +441,44 @@ def Db_test(label_file,db_file,data_file,base_dir,id_dir,dis_dir,base_id):
             feat = None
             print("read img faild, " + img_path)
         else:
-            img = Img_enhance(img)
+            if config.db_enhance:
+                img = Img_enhance(img,config.gamma)
             img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
             if config.torch_:
                 img = img*1.0
                 img = img/255
-            else:
+            elif config.caffe_use:
                 img = (img-127.5)*0.0078125
             feat = model_.extractfeature(img)
             if config.norm:
                 fea_std = np.std(feat)
                 fea_mean = np.mean(feat)
                 feat = (feat-fea_mean)/fea_std
-        #print("feature ",feat[:5])
+        if config.debug:
+            print("feature ",feat[:5])
+        return feat
+    def extract_f2(model_,path_,base_dir):
+        img_path = os.path.join(base_dir,path_)
+        img = cv2.imread(img_path)
+        if img is None:
+            feat = None
+            print("read img faild, " + img_path)
+        else:
+            if config.face_enhance:
+                img = Img_enhance(img,config.gamma)
+            img = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
+            if config.torch_:
+                img = img*1.0
+                img = img/255
+            elif config.caffe_use:
+                img = (img-127.5)*0.0078125
+            feat = model_.extractfeature(img)
+            if config.norm:
+                fea_std = np.std(feat)
+                fea_mean = np.mean(feat)
+                feat = (feat-fea_mean)/fea_std
+        if config.debug:
+            print("feature ",feat[:5])
         return feat
     db_names = []
     db_paths = []
@@ -453,15 +512,17 @@ def Db_test(label_file,db_file,data_file,base_dir,id_dir,dis_dir,base_id):
     org_wrong_dict = dict()
     cnt_org = 0 
     cnt_dest = 0
+    test_label_dict = dict()
     for querry_line in data_lines:
         querry_line = querry_line.strip()
         que_spl = querry_line.split("/")
         key_que = que_spl[0][2:]
+        test_label_dict[key_que] = 1
         real_label = label_dict.setdefault(key_que,300)+base_id
         idx_+=1
         sys.stdout.write('\r>> deal with %d/%d' % (idx_,len(data_lines)))
         sys.stdout.flush()
-        querry_feat = extract_f(FaceModel,querry_line,base_dir)
+        querry_feat = extract_f2(FaceModel,querry_line,base_dir)
         if querry_feat is None:
             print("feature is None")
             continue
@@ -508,7 +569,7 @@ def Db_test(label_file,db_file,data_file,base_dir,id_dir,dis_dir,base_id):
     for key_name in db_cnt_dict.keys():
         if db_cnt_dict[key_name] != 0:
             right_id+=1
-        else:
+        elif key_name in test_label_dict.keys():
             not_reg_id.append(key_name)
     org_id = 0
     #ori_name = []
@@ -629,8 +690,7 @@ if __name__ == "__main__":
     p1 = parm.img_path1
     p2 = parm.img_path2
     model_path = parm.tf_model
-    base_id = parm.base_id
-    #compare_img(p1,p2,model_path) 
+    base_id = parm.base_id 
     f_in = parm.file_in
     db_file = parm.file_in
     base_dir = parm.base_dir
@@ -643,13 +703,11 @@ if __name__ == "__main__":
     #test()
     #feature_generate(f_in,base_dir)
     #reg_test(f_in,base_dir,id_dir)
-    #label_file = "prison_label_10778.pkl"
     if cmd_type == 'dbtest':
         #label_file = "prison_label_218.pkl"
         Db_test(label_file,db_file,data_file,base_dir,id_dir,saved_dir,base_id)
     elif cmd_type== 'imgtest':
         compare_img(p1,p2,model_path)
-    #label_file = "prison_label_203.pkl"
-    #label_file = "prison_label_10778.pkl"
-    #label_file = "prison_label_236.pkl"
+    else:
+        compare_f(p1,p2)
     #DB_Pred(label_file,db_file,data_file,base_dir,id_dir,saved_dir,base_id)

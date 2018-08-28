@@ -218,6 +218,11 @@ def save_cropfromvideo(file_in,base_name,save_dir,save_dir2):
     #detect_model = FaceDetector_Opencv(model_path)
     crop_size = [112,96]
     Align_Image = Align_img(crop_size)
+    def mk_dirs(path):
+        if os.path.exists(path):
+            pass
+        else:
+            os.makedirs(path)
     def img_crop(img,bbox,w,h):
         x1 = int(max(bbox[0],0))
         y1 = int(max(bbox[1],0))
@@ -233,10 +238,10 @@ def save_cropfromvideo(file_in,base_name,save_dir,save_dir2):
         if config.box_widen:
             boxw = x2-x1
             boxh = y2-y1
-            x1 = max(0,int(x1-0.2*boxw))
-            y1 = max(0,int(y1-0.1*boxh))
-            x2 = min(imgw,int(x2+0.2*boxw))
-            y2 = min(imgh,int(y2+0.1*boxh))
+            x1 = int(max(0,int(x1-0.2*boxw)))
+            y1 = int(max(0,int(y1-0.1*boxh)))
+            x2 = int(min(imgw,int(x2+0.2*boxw)))
+            y2 = int(min(imgh,int(y2+0.1*boxh)))
         cropimg = img[y1:y2,x1:x2,:]
         return cropimg
     idx_cnt = 0 
@@ -267,6 +272,8 @@ def save_cropfromvideo(file_in,base_name,save_dir,save_dir2):
         #print(boxes_or[0])
         idx = map(int,I)
         return boxes[idx[:]].tolist()
+    mk_dirs(save_dir)
+    mk_dirs(save_dir2)
     if not v_cap.isOpened():
         print("field to open video")
     else:

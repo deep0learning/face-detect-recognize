@@ -25,18 +25,20 @@ config.feature_expand = 0
 # whether use gamma enhancement for database images
 config.db_enhance = 0
 # the subtraction of  top 2 distances, threshold value
-config.confidence = 0.09
+config.confidence = 0.1
 # the nearest person, distance threshold value
-config.top1_distance =1.1
+config.top1_distance = 1.1
 # whether to load center_loss caffemodel
 config.center_loss= 0
 # whether to use image enhance to process the faces for face recognition
-config.face_enhance = 1
+config.face_enhance = 0
 # whether to print the detect and recognize consuming time
 config.time = 0
 # after load caffe models successful, resaving the caffemodel
 config.caffe_resave = 0
 #frame interval to recognize
-config.frame_interval = 3
+config.frame_interval = 5
 #extract the 1024 feature
 config.feature_1024 = 0
+#image enhance gamma
+config.gamma = 0.5

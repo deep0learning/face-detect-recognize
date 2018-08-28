@@ -63,7 +63,7 @@ def args():
 class Annoy_DB(object):
     def __init__(self,data_dim):
         if faceconfig.mx_:
-            self.db = AnnoyIndex(data_dim,metric='euclidean')
+            self.db = AnnoyIndex(data_dim,metric='angular')
         else:
             self.db = AnnoyIndex(data_dim,metric='angular')
     def add_data(self,i,data):
@@ -83,8 +83,8 @@ class DB_Reg(object):
         elif faceconfig.mx_:
             #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r50-am-lfw/model"
             #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r34-amf/model"
-            model_path = "../models/mx_model/model"
-            epoch_num = 19
+            model_path = "../models/mx_models/v1_bn/model"
+            epoch_num = 9
             img_size = [112,112]
             FaceModel = mx_Face(model_path,epoch_num,img_size)
         else:
@@ -120,7 +120,7 @@ class DB_Reg(object):
             if faceconfig.torch_:
                 img = img*1.0
                 img = img/255
-            else:
+            elif faceconfig.caffe_use:
                 img = (img-127.5)*0.0078125
             feat = self.FaceModel.extractfeature(img)
         return feat,img_org
@@ -134,7 +134,7 @@ class DB_Reg(object):
             if faceconfig.torch_:
                 img = img*1.0
                 img = img/255
-            else:
+            elif faceconfig.caffe_use:
                 img = (img-127.5)*0.0078125
             feat = self.FaceModel.extractfeature(img)
         return feat
@@ -199,7 +199,8 @@ class DB_Reg(object):
         id_path = os.path.join(img_path,img_name+".jpg")
         return img_name,db_img,dist_path,img_cnt,id_path
 
-    def img_enhance(self,image,fgamma=1.5):
+    def img_enhance(self,image):
+        fgamma = faceconfig.gamma
         image_gamma = np.uint8(np.power(image/255.0,fgamma)*255.0)
         cv2.normalize(image_gamma, image_gamma, 0, 255, cv2.NORM_MINMAX)
         cv2.convertScaleAbs(image_gamma, image_gamma)
@@ -218,6 +219,7 @@ class DB_Reg(object):
             idx_list,distance_list = self.DB_FT.findNearest(querry_feat,3) 
             if faceconfig.debug:
                 print("distance list ",distance_list)
+            #print("distance 1: ",distance_list[0],distance_list[1])
             if distance_list[0] <= faceconfig.top1_distance and (distance_list[1] - distance_list[0]) >= faceconfig.confidence:
                 if faceconfig.debug:
                     print("distance 1: ",distance_list[0],distance_list[1])
@@ -312,11 +314,18 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
     min_size = 24
     base_name = "test"
     threshold = np.array([0.8,0.9,0.95])
+    if os.path.exists(save_dir):
+        pass
+    else:
+        os.makedirs(save_dir)
     detect_model = MTCNNDet(min_size,threshold) 
     facereg_model = DB_Reg(db_file,id_dir,save_dir)
     #model_path = "../models/haarcascade_frontalface_default.xml"
     #detect_model = FaceDetector_Opencv(model_path)
-    crop_size = [112,96]
+    if faceconfig.mx_:
+        crop_size = [112,96]
+    else:
+        crop_size = [112,96]
     idx_cnt = 0
     person_name_dict = dict()
     cv2.namedWindow("gallery")
@@ -327,13 +336,17 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
     cv2.moveWindow("querry",500,10)
     cv2.moveWindow("video",1400,10)
     cv2.moveWindow("src",650,10)
-    id_prob_show = np.zeros([6*112,3*96,3],dtype=np.uint8)
+    show_h = crop_size[0]
+    show_w = crop_size[1]
+    id_prob_show = np.zeros([6*show_h,3*show_w,3],dtype=np.uint8)
     if not v_cap.isOpened():
         print("field to open video")
     else:
         if file_in is not None:
             print("video frame num: ",v_cap.get(cv2.CAP_PROP_FRAME_COUNT))
             total_num = v_cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            if total_num > 100000:
+                total_num = 30000
         else:
             total_num = 100000
         if frame_num is not None:
@@ -386,22 +399,22 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
                             if faceconfig.time:
                                 print("a face recognize time cost {:.3f} ".format(t_reg))
                             person_cnt = person_name_dict.setdefault(person_name,fram_cnt)
-                            if fram_cnt - person_cnt <= faceconfig.feature_interval:
+                            if fram_cnt - person_cnt <= faceconfig.frame_interval:
                                 facereg_model.saveperson(img_out)
                                 #person_name_dict[person_name] = person_cnt+1
                             person_name_dict[person_name] = person_cnt+1
                             #db_img = cv2.cvtColor(db_img,cv2.COLOR_RGB2BGR)
                             if faceconfig.debug:
                                 print("crop img",img_out.shape,img_out[0,0:10,0])
-                            id_prob_show[:112,:96,:] = db_img
+                            id_prob_show[:show_h,:show_w,:] = db_img
                             #id_prob_show[:112,192:,:] = img_out
-                            id_prob_show[:112,192:,:] = img_en
+                            id_prob_show[:show_h,2*show_w:,:] = img_en
                             #cv2.imshow("querry",id_prob_show[:112,:96,:])
                             if faceconfig.debug:
                                 print("show img id and crop ",id_prob_show[10,5:10,0],id_prob_show[10,200:210,0])
                             cv2.imshow("gallery",id_prob_show)
                             cv2.waitKey(50)
-                            id_prob_show[112:,:,:] = id_prob_show[:-112,:,:]
+                            id_prob_show[show_h:,:,:] = id_prob_show[:-show_h,:,:]
                         cv2.imshow("querry",img_en)
                         cv2.imshow("src",img_out)
                 label_show(frame,rectangles)
