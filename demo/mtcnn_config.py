@@ -17,3 +17,4 @@ config.crop_org = 0
 config.x_y = 0
 #if box_widen = 1, the boxes got by face detection model output , will be widened. used for images to build database
 config.box_widen = 0
+config.id_box_widen = 1

@@ -19,14 +19,17 @@ import pickle
 import pylab as pl
 import matplotlib.pyplot as plt
 import string
+from face_config import config
 
 def parms():
     parser = argparse.ArgumentParser(description='gen img lists for confusion matrix test')
-    parser.add_argument('--img-dir',type=str,dest="img_dir",default='/home/lxy/Pictures',\
+    parser.add_argument('--img-dir',type=str,dest="img_dir",default='./',\
+                        help='the directory should include 2 more Picturess')
+    parser.add_argument('--dir2-in',type=str,dest="dir2_in",default='./',\
                         help='the directory should include 2 more Picturess')
     parser.add_argument('--file-in',type=str,dest="file_in",default="train.txt",\
                         help='img paths saved file')
-    parser.add_argument('--save-dir',type=str,dest="save_dir",default='/home/lxy/Pictures',\
+    parser.add_argument('--save-dir',type=str,dest="save_dir",default='./',\
                         help='img saved dir')
     parser.add_argument('--base-id',type=int,dest="base_id",default=0,\
                         help='img id')
@@ -122,7 +125,7 @@ def generate_list_from_dir(dirpath,out_file):
         sys.stdout.write("\r>>convert  %d/%d" %(idx,total_))
         sys.stdout.flush()
         for img_one in imgs:
-            if len(img_one)<=8:
+            if config.img_lenth8 and len(img_one)<=8:
                 continue
             img_path = os.path.join(file_cnt,img_one)
             total_cnt+=1
@@ -572,8 +575,6 @@ def gen_idimg_from_dir(dirpath,saved_dir):
     files = os.listdir(dirpath)
     total_ = len(files)
     print("total id ",len(files))
-    idx =0
-    file_name = []
     total_cnt = 0
     for file_cnt in files:
         img_dir = os.path.join(dirpath,file_cnt)
@@ -596,6 +597,74 @@ def gen_idimg_from_dir(dirpath,saved_dir):
             print("img path is not exist",org_img_path)
     print("total img ",total_cnt)
 
+def compare_2dir(base_dir,dir2,saved_dir):
+    '''
+    dir1: saved imgs dir
+            "dir1/id_num/image1.jpg"
+    dir2: saved imgs dir
+            "dir2/id_num/image1.jpg"
+    saved_dir: resave images from dir2  not in dir1
+    '''
+    def make_dirs(dir_path):
+        if os.path.exists(dir_path):
+            pass 
+        else:
+            os.makedirs(dir_path)
+    make_dirs(saved_dir)
+    tpr = 0
+    idx_ = 0
+    dir1_files = os.listdir(base_dir)
+    total_file1 = len(dir1_files)
+    dir1_id_dict = dict()
+    for id_num in dir1_files:
+        dir1_id_dict[id_num] = dir1_id_dict.setdefault(id_num,[])
+        img_dir = os.path.join(base_dir,id_num)
+        img_files = os.listdir(img_dir)
+        for item_img in img_files:
+            item_img = item_img.strip()
+            if len(item_img)<=8:
+                continue
+            dir1_id_dict[id_num].append(item_img)
+    dir2_files = os.listdir(dir2)
+    total_file2 = len(dir2_files)
+    dir2_id_cnt_dict = dict()
+    for id2_num in dir2_files:
+        idx_+=1
+        sys.stdout.write('\r>> deal with %d/%d' % (idx_,total_file2))
+        sys.stdout.flush()
+        id_cnt = dir2_id_cnt_dict.setdefault(id2_num,0)
+        img2_dir = os.path.join(dir2,id2_num)
+        img2_files = os.listdir(img2_dir)
+        if id2_num in dir1_id_dict.keys():
+            id_files = dir1_id_dict[id2_num]
+        else:
+            id_files = []
+        for item_img2 in img2_files:
+            item_img2 = item_img2.strip()
+            if item_img2 in id_files:
+                tpr+=1
+                dir2_id_cnt_dict[id2_num] = id_cnt+1
+            else:
+                failed_img_dir = os.path.join(saved_dir,id2_num)
+                make_dirs(failed_img_dir)
+                failed_img_path = os.path.join(failed_img_dir,item_img2)
+                org_img_path = os.path.join(img2_dir,item_img2)
+                shutil.copyfile(org_img_path,failed_img_path)
+    not_reg_names = []
+    for item_name in dir1_id_dict.keys():
+        if item_name in dir2_id_cnt_dict.keys():
+            if dir2_id_cnt_dict[item_name] >0:
+                pass
+            else:
+                not_reg_names.append(item_name)
+        else:
+            not_reg_names.append(item_name)
+    print("total id in file1: ",total_file1)
+    print("total id in file2: ",total_file2)
+    print("dir2 match imgs: ",tpr)
+    print("dir2 not in dir1 names: ",not_reg_names)
+
+
 if __name__ == "__main__":
     args = parms()
     txt_file = args.file_in
@@ -608,6 +677,7 @@ if __name__ == "__main__":
     cmd_type = args.cmd_type
     hist_max = args.hist_max
     hist_bin = args.hist_bin
+    dir2 = args.dir2_in
     #read_1(txt_file)
     #gen_dirfromtxt(txt_file,img_dir,save_dir)
     #generate_label_from_dir(img_dir)
@@ -621,7 +691,7 @@ if __name__ == "__main__":
     elif cmd_type == 'gen_label_pkl':
         get_labelfromdir(img_dir,out_file)
     elif cmd_type == 'gen_filepath_1dir':
-        gen_filefromdir(img_dir,txt_file)
+        gen_filefromdir(img_dir,out_file)
     elif cmd_type == 'save_idimgfrom_txt':
         save_cropface(txt_file,img_dir,save_dir)
     elif cmd_type == 'hist':
@@ -633,4 +703,6 @@ if __name__ == "__main__":
         gen_idimg_from_dir(img_dir,save_dir)
     elif cmd_type == 'gen_filepath_2dir':
         generate_list_from_dir(img_dir,out_file)
+    elif cmd_type == 'compare_dir':
+        compare_2dir(img_dir,dir2,save_dir)
     #rm_imgfromtxt(img_dir,txt_file)

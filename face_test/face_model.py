@@ -69,7 +69,7 @@ class FaceReg(object):
             #face_m = "../models/sphere/sph_2.caffemodel"
             #face_m = "../models/model-r50-am.caffemodel"
             #face_p = "../models/center/center_loss.prototxt"
-            face_p = "../models/sphere/sph_2.prototxt"
+            #face_p = "../models/sphere/sph_2.prototxt"
             if config.feature_1024:
                 face_p = "../models/sphere/sph_1.prototxt"
             #face_m = "../models/sphere/sph20_10811.caffemodel" #good
@@ -78,7 +78,7 @@ class FaceReg(object):
             #face_m = "../models/sphere/sph20_ms_v7.caffemodel"  #best good
             #face_m = "../models/sphere/sph20_ms_v8.caffemodel"  #the best good
             #face_m = "../models/sphere/sph20_ms_v9.caffemodel"   #fpr is best good
-            face_m = "../models/sphere/sph20_ms_4v5.caffemodel"  # **the best
+            #face_m = "../models/sphere/sph20_ms_4v5.caffemodel"  # **the best
             #face_m = "../models/sphere/sph20_ms_1024v1.caffemodel" #best for m=1
             #face_m = "../models/sphere/sph20_ms_1024v3.caffemodel"
             #face_m = "../models/sphere/sph_test.caffemodel"
@@ -90,9 +90,11 @@ class FaceReg(object):
             #face_p = "../models/sphere/sph_64_model.prototxt"
             #face_m = "../models/sphere/sph64_10811.caffemodel"
             #face_m = "../models/sphere/sph64_ms_v1.caffemodel"
+            face_p = "../models/mx_models/mobile_model/face-mobile.prototxt"
+            face_m = "../models/mx_models/mobile_model/face-mobile.caffemodel"
         self.face_net = caffe.Net(face_p,face_m,caffe.TEST)
         print("face model load successful **************************************")
-        if config.caffe_resave:
+        if config.model_resave:
             caffe_model_path = "../models/sphere/sph_test.caffemodel"
             self.face_net.save(caffe_model_path)
             print("************ model resaved over******")
@@ -126,6 +128,8 @@ class FaceReg(object):
         net_out = self.face_net.forward()
         if config.feature_1024:
             features = net_out['fc5_n']
+        elif config.insight:
+            features = net_out['fc1']
         else:
             features = net_out['fc5']
         t1 = time.time()-t
@@ -304,6 +308,18 @@ class mx_Face(object):
         else:
             model.bind(data_shapes=[('data', (1, 3, image_size[0], image_size[1]))],for_training=False)
         model.set_params(arg_params, aux_params)
+        if config.model_resave:
+            dellist = []
+            for k,v in arg_params.iteritems():
+                if k.startswith('fc7'):
+                    dellist.append(k)
+                elif k.startswith('Drop'):
+                    dellist.append(k)
+                if config.debug:
+                    print("key name: ",k)
+            for d in dellist:
+                del arg_params[d]
+            mx.model.save_checkpoint(prefix+"resave", 0, sym, arg_params, aux_params)
         return model
 
     def extractfeature(self,img):
@@ -311,6 +327,7 @@ class mx_Face(object):
         if h_ !=self.h or w_ !=self.w:
             img = cv2.resize(img,(self.w,self.h))
         #img = (img-127.5)*0.0078125
+        t = time.time()
         img = np.transpose(img,(2,0,1))
         if config.feature_expand:
             img_list = []
@@ -335,6 +352,9 @@ class mx_Face(object):
         else: 
             features = self.model_net.predict(img_input)
             #embedding = features[0]
+        t1 = time.time() - t
+        if config.time:
+            print("mxnet forward time cost: ",t1)
         if config.debug:
             print("feature shape ",np.shape(features))
         #print("features ",features[0,:5])

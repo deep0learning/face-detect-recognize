@@ -50,6 +50,8 @@ def args():
                         help="detect face from : video or txtfile")
     parser.add_argument('--save-dir2',type=str,dest='save_dir2',default=None,\
                         help="images saved dir")
+    parser.add_argument('--img-size',type=str,dest='img_size',default='112,96',\
+                        help="images saved size")
     return parser.parse_args()
 
 
@@ -107,7 +109,7 @@ def main():
         cap.release()
         cv2.destroyAllWindows()   
 
-def save_cropfromtxt(file_in,base_dir,save_dir):
+def save_cropfromtxt(file_in,base_dir,save_dir,crop_size):
     '''
     file_in: images path recorded
     base_dir: images locate in 
@@ -121,13 +123,17 @@ def save_cropfromtxt(file_in,base_dir,save_dir):
     detect_model = MTCNNDet(min_size,threshold) 
     #model_path = "../models/haarcascade_frontalface_default.xml"
     #detect_model = FaceDetector_Opencv(model_path)
+    if os.path.exists(save_dir):
+        pass
+    else:
+        os.makedirs(save_dir)
     def img_crop(img,bbox):
         imgh,imgw,imgc = img.shape
         x1 = int(bbox[0])
         y1 = int(bbox[1])
         x2 = int(bbox[2])
         y2 = int(bbox[3])
-        if config.box_widen:
+        if config.id_box_widen:
             boxw = x2-x1
             boxh = y2-y1
             x1 = max(0,int(x1-0.2*boxw))
@@ -178,7 +184,7 @@ def save_cropfromtxt(file_in,base_dir,save_dir):
             rectangles = sort_box(rectangles)
             img_out = img_crop(img,rectangles[0])
             #savepath = os.path.join(save_dir,str(idx_cnt)+".jpg")
-            img_out = cv2.resize(img_out,(96,112))
+            img_out = cv2.resize(img_out,(crop_size[1],crop_size[0]))
             savepath = os.path.join(save_dir,line_1)
             '''
             savedir = os.path.join(save_dir,new_dir)
@@ -194,13 +200,14 @@ def save_cropfromtxt(file_in,base_dir,save_dir):
             cv2.waitKey(1000)
             #cv2.imwrite(savepath,img)
             label_show(img,rectangles)
+            cv2.imshow("crop",img_out)
         else:
             print("failed ",img_path)
         cv2.imshow("test",img)
         cv2.waitKey(10)
 
 
-def save_cropfromvideo(file_in,base_name,save_dir,save_dir2):
+def save_cropfromvideo(file_in,base_name,save_dir,save_dir2,crop_size):
     '''
     file_in: input video file path
     base_name: saved images prefix name
@@ -216,7 +223,7 @@ def save_cropfromvideo(file_in,base_name,save_dir,save_dir2):
     detect_model = MTCNNDet(min_size,threshold) 
     #model_path = "../models/haarcascade_frontalface_default.xml"
     #detect_model = FaceDetector_Opencv(model_path)
-    crop_size = [112,96]
+    #crop_size = [112,96]
     Align_Image = Align_img(crop_size)
     def mk_dirs(path):
         if os.path.exists(path):
@@ -354,8 +361,11 @@ if __name__ == "__main__":
     base_name = parm.base_name
     cmd_type = parm.cmd_type
     save_dir2 = parm.save_dir2
+    img_size = parm.img_size
+    size_spl = img_size.strip().split(',')
+    img_size = [int(size_spl[0]),int(size_spl[1])]
     #base_name = parm.img_path1
     if cmd_type == 'txtfile':
-        save_cropfromtxt(f_in,base_dir,save_dir)
+        save_cropfromtxt(f_in,base_dir,save_dir,img_size)
     elif cmd_type == 'video':
-        save_cropfromvideo(f_in,base_name,save_dir,save_dir2)
+        save_cropfromvideo(f_in,base_name,save_dir,save_dir2,img_size)
