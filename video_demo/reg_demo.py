@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 import argparse
 import time
+from video_config import config as videoconfig
 sys.path.append(os.path.join(os.path.dirname(__file__),'..', 'demo'))
 from mtcnn_config import config as detconfig
 from Detector import FaceDetector_Opencv,MTCNNDet
@@ -31,6 +32,7 @@ import h5py
 from annoy import AnnoyIndex
 import pickle
 import logging
+#import struct
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -58,6 +60,7 @@ def args():
                         help="images saved dir")
     parser.add_argument('--base-id', default=0,dest='base_id', type=int,help='label plus the id')
     parser.add_argument('--frame-num', default=None,dest='frame_num', type=float,help='begin to run num')
+    parser.add_argument('--out-file', default=None,dest='out_file', type=str,help='save output')
     return parser.parse_args()
 
 class Annoy_DB(object):
@@ -81,10 +84,11 @@ class DB_Reg(object):
             model_path = "../models/torch_models/resnet50m-xent-face1.pth.tar"
             FaceModel = Deep_Face(model_path,256,128)
         elif faceconfig.mx_:
+            model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
             #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r50-am-lfw/model"
             #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r34-amf/model"
-            model_path = "../models/mx_models/v1_bn/model"
-            epoch_num = 9
+            #model_path = "../models/mx_models/v1_bn/model" #9
+            epoch_num = 0 #9
             img_size = [112,112]
             FaceModel = mx_Face(model_path,epoch_num,img_size)
         else:
@@ -156,10 +160,12 @@ class DB_Reg(object):
             self.db_names.append(one_name)
             face_db_dir = os.path.join(self.save_dir,one_name)
             self.db_paths.append(face_db_dir)
+            '''
             if os.path.exists(face_db_dir):
                 pass
             else:
                 os.makedirs(face_db_dir)
+            '''
             self.DB_FT.add_data(item_,base_feat)
             self.db_imgs.append(db_img)
             item_+=1
@@ -189,12 +195,20 @@ class DB_Reg(object):
                 continue
         data_in.close()
 
+    def mk_dirs(self,dir_path):
+        if os.path.exists(dir_path):
+            pass
+        else:
+            os.makedirs(dir_path)
+
     def get_namebyindx(self,idx):
         img_name = self.db_names[idx] 
         img_path = self.db_paths[idx]
         db_img = self.db_imgs[idx]
         #pred_label = label_dict.setdefault(img_name,300)+base_id
         img_cnt = self.db_cnt_dict.setdefault(img_name,0)
+        if int(img_cnt) == 0:
+            self.mk_dirs(img_path)
         dist_path = os.path.join(img_path,img_name+"_"+str(img_cnt)+".jpg")
         id_path = os.path.join(img_path,img_name+".jpg")
         return img_name,db_img,dist_path,img_cnt,id_path
@@ -265,15 +279,36 @@ def img_crop2(img,bboxes,crop_size,imgw,imgh):
         y1 = int(bbox[1])
         x2 = int(bbox[2])
         y2 = int(bbox[3])
-        if detconfig.box_widen:
+        if videoconfig.det_box_widen:
             boxw = x2-x1
             boxh = y2-y1
-            x1 = max(0,int(x1-0.2*boxw))
-            y1 = max(0,int(y1-0.1*boxh))
-            x2 = min(imgw,int(x2+0.2*boxw))
-            #y2 = min(imgh,int(y2+0.1*boxh))
+            x1 = int(max(0,int(x1-0.2*boxw)))
+            y1 = int(max(0,int(y1-0.2*boxh)))
+            x2 = int(min(imgw,int(x2+0.2*boxw)))
+            y2 = int(min(imgh,int(y2+0.2*boxh)))
         cropimg = img[y1:y2,x1:x2,:]
         cropimg = cv2.resize(cropimg,(crop_size[1],crop_size[0]))
+        crop_imgs.append(cropimg)
+    return crop_imgs
+
+def img_crop3(img,bboxes,imgw,imgh):
+    '''
+    img: frame
+    bboxes: [x1,y1,x2,y2,score,p1,...,p10],[],...
+    '''
+    crop_imgs = []
+    for bbox in bboxes:
+        x1 = int(bbox[0])
+        y1 = int(bbox[1])
+        x2 = int(bbox[2])
+        y2 = int(bbox[3])
+        boxw = x2-x1
+        boxh = y2-y1
+        x1 = int(max(0,int(x1-0.2*boxw)))
+        y1 = int(max(0,int(y1-0.2*boxh)))
+        x2 = int(min(imgw,int(x2+0.2*boxw)))
+        y2 = int(min(imgh,int(y2+0.2*boxh)))
+        cropimg = img[y1:y2,x1:x2,:]
         crop_imgs.append(cropimg)
     return crop_imgs
      
@@ -306,7 +341,7 @@ def sort_box(boxes_or):
     idx = map(int,I)
     return boxes[idx[:]].tolist()
 
-def main(file_in,db_file,id_dir,save_dir,frame_num):
+def main(file_in,db_file,id_dir,save_dir,frame_num,out_file):
     if file_in is None:
         v_cap = cv2.VideoCapture(0)
     else:
@@ -318,15 +353,20 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
         pass
     else:
         os.makedirs(save_dir)
+    if os.path.isfile(out_file):
+        record_w = open(out_file,'w')
+    else:
+        print("the output file is not exist: ",out_file)
     detect_model = MTCNNDet(min_size,threshold) 
     facereg_model = DB_Reg(db_file,id_dir,save_dir)
     #model_path = "../models/haarcascade_frontalface_default.xml"
     #detect_model = FaceDetector_Opencv(model_path)
     if faceconfig.mx_:
-        crop_size = [112,96]
+        crop_size = [112,112]
     else:
         crop_size = [112,96]
     idx_cnt = 0
+    record_w.write("crop size is: %s \n" % ("\t".join([str(x) for x in crop_size])))
     person_name_dict = dict()
     cv2.namedWindow("gallery")
     cv2.namedWindow("querry")
@@ -349,6 +389,7 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
                 total_num = 30000
         else:
             total_num = 100000
+        record_w.write("the video has total num: %d \n" % total_num)
         if frame_num is not None:
             v_cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
         fram_w = v_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -357,6 +398,8 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
         while v_cap.isOpened():
             ret,frame = v_cap.read()
             fram_cnt+=1
+            sys.stdout.write("\r>> deal with %d / %d" % (fram_cnt,total_num))
+            sys.stdout.flush()
             if ret: 
                 t = time.time()
                 rectangles = detect_model.detectFace(frame)
@@ -380,13 +423,16 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
                     points = points[:,5:]
                     points_list = points.tolist()
                     #crop_imgs = Align_Image.extract_image_chips(frame,points_list)
-                    if detconfig.box_widen:
+                    if videoconfig.det_box_widen:
                         crop_imgs = img_crop2(frame,rectangles,crop_size,fram_w,fram_h)
                     else:
                         crop_imgs = alignImg(frame,crop_size,points_list)
+                    if videoconfig.box_widen:
+                        crop_widen_imgs = img_crop3(frame,rectangles,fram_w,fram_h)
+                        assert len(crop_imgs) == len(crop_widen_imgs), "boxes widen is not equal the align"
                     if len(crop_imgs) == 0:
                         continue
-                    for img_out in crop_imgs:
+                    for crop_id,img_out in enumerate(crop_imgs):
                         idx_cnt+=1
                         #savepath = os.path.join(save_dir,base_name+'_'+str(idx_cnt)+".jpg")
                         #img_out = cv2.resize(img_out,(96,112))
@@ -400,7 +446,10 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
                                 print("a face recognize time cost {:.3f} ".format(t_reg))
                             person_cnt = person_name_dict.setdefault(person_name,fram_cnt)
                             if fram_cnt - person_cnt <= faceconfig.frame_interval:
-                                facereg_model.saveperson(img_out)
+                                if videoconfig.box_widen:
+                                    facereg_model.saveperson(crop_widen_imgs[crop_id])
+                                else:
+                                    facereg_model.saveperson(img_out)
                                 #person_name_dict[person_name] = person_cnt+1
                             person_name_dict[person_name] = person_cnt+1
                             #db_img = cv2.cvtColor(db_img,cv2.COLOR_RGB2BGR)
@@ -416,7 +465,11 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
                             cv2.waitKey(50)
                             id_prob_show[show_h:,:,:] = id_prob_show[:-show_h,:,:]
                         cv2.imshow("querry",img_en)
-                        cv2.imshow("src",img_out)
+                        #cv2.imshow("src",img_out)
+                        if videoconfig.box_widen:
+                            cv2.imshow("src",crop_widen_imgs[crop_id])
+                        else:
+                            cv2.imshow("src",img_out)
                 label_show(frame,rectangles)
             else:
                 #print("current frame no face ")
@@ -443,6 +496,11 @@ def main(file_in,db_file,id_dir,save_dir,frame_num):
     print("total faces ",idx_cnt)
     print("reg faces ",reg_img_cnt)
     print("not reg person: ",not_reg_name)
+    record_w.write("person recognized num: %d \n" % person_real)
+    record_w.write("detected total faces: %d \n" % idx_cnt)
+    record_w.write("recognize      faces: %d \n" % reg_img_cnt)
+    record_w.write("in db not reg person: %s \n" % (" ".join([str(y) for y in not_reg_name])))
+    record_w.close()
     v_cap.release()
     cv2.destroyAllWindows()
 
@@ -453,4 +511,5 @@ if __name__ == "__main__":
     id_dir = parm.base_dir
     save_dir = parm.save_dir
     frame_num = parm.frame_num
-    main(videofile,db_file,id_dir,save_dir,frame_num)
+    output_file = parm.out_file
+    main(videofile,db_file,id_dir,save_dir,frame_num,output_file)

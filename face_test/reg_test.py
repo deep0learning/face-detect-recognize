@@ -103,8 +103,8 @@ def compare_img(path1,path2,model_path):
     #model_path = "../models/tf-models/InsightFace_iter-3140"
     if config.mx_ :
         #model_path = "../models/mx_models/v1_bn/model"
-        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
-        model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
+        model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
+        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
         #model_path = "../models/mx_models/mobile_model/model"
         epoch_num = 0
         img_size = [112,112]
@@ -222,7 +222,7 @@ def get_frame_num(img_path):
     que_spl = img_path.split("/")
     face_num = que_spl[1].split("_")
     face_num = face_num[1][:-4]
-    return face_num
+    return int(face_num)
 
 
 def Db_test(label_file,**kwargs):
@@ -248,9 +248,11 @@ def Db_test(label_file,**kwargs):
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r34-amf/model"
         #model_path = "../models/mx_models/v1_bn/model"
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
-        model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
+        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
         #model_path = "../models/mx_models/mobile_model/model"
-        epoch_num = 0 #9#2
+        #model_path = "../models/mx_models/model-100/model"
+        model_path = "../models/mx_models/model_prison/model"
+        epoch_num = 28 #9#2
         img_size = [112,112]
         FaceModel = mx_Face(model_path,epoch_num,img_size)
     else:
@@ -344,7 +346,7 @@ def Db_test(label_file,**kwargs):
             if config.use_framenum :
                 if reg_condition:
                     reg_frame_cnt = reg_frame_dict.setdefault(img_name,frame_num)
-                    frame_interval = frame_num - reg_frame_cnt
+                    frame_interval = np.abs(frame_num - reg_frame_cnt)
                     save_condition = 1 if frame_interval < config.frame_interval else 0
                 else:
                     save_condition = 0

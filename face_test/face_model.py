@@ -299,7 +299,7 @@ class mx_Face(object):
         sym, arg_params, aux_params = mx.model.load_checkpoint(prefix, epoch_num)
         all_layers = sym.get_internals()
         if config.debug:
-            print("all layers ",all_layers.list_outputs())
+            print("all layers ",all_layers.list_outputs()[-1])
         sym = all_layers[layer+'_output']
         model = mx.mod.Module(symbol=sym, context=ctx, data_names=('data',),label_names = None)
         #model.bind(data_shapes=[('data', (args.batch_size, 3, image_size[0], image_size[1]))], label_shapes=[('softmax_label', (args.batch_size,))])
@@ -372,8 +372,8 @@ class mx_Face(object):
             s_d = distance.cosine(feat1,feat2)
         elif c_type == "euclidean":
             #s_d = np.sqrt(np.sum(np.square(feat1-feat2)))
-            s_d = distance.euclidean(feat1,feat2,w=1./len_)
-            #s_d = distance.euclidean(feat1,feat2,w=1)
+            #s_d = distance.euclidean(feat1,feat2,w=1./len_)
+            s_d = distance.euclidean(feat1,feat2,w=1)
         elif c_type == "correlation":
             s_d = distance.correlation(feat1,feat2)
         elif c_type == "braycurtis":
