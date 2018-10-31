@@ -112,10 +112,12 @@ class ExtractFeatures(object):
             elif config.caffe_use:
                 img = (img-127.5)*0.0078125
             feat = self.face_model.extractfeature(img)
+            '''
             if config.norm:
                 fea_std = np.std(feat)
                 fea_mean = np.mean(feat)
                 feat = (feat-fea_mean)/fea_std
+            '''
         #if config.debug:
             #print("feature ",feat[:5])
         return feat
@@ -136,10 +138,12 @@ class ExtractFeatures(object):
             elif config.caffe_use:
                 img = (img-127.5)*0.0078125
             feat = self.face_model.extractfeature(img)
+            '''
             if config.norm:
                 fea_std = np.std(feat)
                 fea_mean = np.mean(feat)
                 feat = (feat-fea_mean)/fea_std
+            '''
         #if config.debug:
          #   print("feature ",feat[:5])
         return feat
@@ -163,10 +167,12 @@ class ExtractFeatures(object):
             elif config.caffe_use:
                 img_crop = (img_crop-127.5)*0.0078125
             feat = self.face_model.extractfeature(img_crop)
+            '''
             if config.norm:
                 fea_std = np.std(feat)
                 fea_mean = np.mean(feat)
                 feat = (feat-fea_mean)/fea_std
+            '''
         #if config.debug:
          #   print("feature ",feat[:5])
         return feat

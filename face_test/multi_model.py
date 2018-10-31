@@ -3,7 +3,6 @@
 #created by :  lxy
 #Time:  2018/06/14 14:09
 #project: Face recognize
-#company: Senscape
 #rversion: 0.1
 #tool:   python 2.7
 #modified:
@@ -106,10 +105,13 @@ def compare_img(path1,path2,model_path):
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
         #model_path = "../models/mx_models/mobile_model/model"
-        model_path = "../models/mx_models/model-100/model-v3/modelresave"
-        epoch_num = 0  #9#2
+        model_path1 = "../models/mx_models/model-100/model-v3/modelresave"
+        model_path2 = "../models/mx_models/model-100/model-v2/model"
+        epoch1_num = 0  #9#2
+        epoch2_num = 5
         img_size = [112,112]
-        FaceModel = mx_Face(model_path,epoch_num,img_size)
+        FaceModel_1 = mx_Face(model_path1,epoch1_num,img_size)
+        FaceModel_2 = mx_Face(model_path2,epoch2_num,img_size)
     elif config.caffe_use:
         face_p1 = "../models/sphere/sph_2.prototxt"
         face_m1 = "../models/sphere/sph20_ms_4v5.caffemodel"
@@ -121,10 +123,13 @@ def compare_img(path1,path2,model_path):
             out_layer ='fc1'
         else:
             out_layer ='fc5'
-        FaceModel = FaceReg(face_p2,face_m2,out_layer)
-    else:
+        FaceModel_1 = FaceReg(face_p1,face_m1,'fc5')
+        FaceModel_2 = FaceReg(face_p2,face_m2,out_layer)
+    elif config.tf_model:
         img_size = [112,112]
         FaceModel = TF_Face_Reg(model_path,img_size,parm.gpu)
+    else:
+        print("please select a model frame")
     def norm_feat(feat):
         f_mod = np.sqrt(np.sum(np.power(feat,2)))
         return feat/f_mod
@@ -244,6 +249,37 @@ def get_frame_num(img_path):
     face_num = face_num[1][:-4]
     return int(face_num)
 
+def make_dirs(dir_path):
+    if os.path.exists(dir_path):
+        pass
+    else:
+        os.makedirs(dir_path)
+
+def get_label(label_file):
+    f_r = open(label_file,'rb')
+    l_dict = pickle.load(f_r)
+    #print(l_dict.values())
+    f_r.close()
+    return l_dict
+
+def featuresProcess(feat_list):
+    same_shape = np.shape(feat_list[0]) 
+    features = feat_list[0]
+    if len(feat_list) >1:
+        for fet in feat_list[1:]:
+            assert np.shape(fet)==same_shape,"feature list not the same shape"
+            features +=fet 
+        _norm=np.linalg.norm(features)
+        features /= _norm
+    return features 
+def featuresProcess2(feat_list):
+    features = np.asarray(feat_list[0])
+    if len(feat_list) > 1:
+        for fet in feat_list[1:]:
+            fet = np.asarray(fet)
+            features = np.concatenate([features,fet])
+    return features 
+
 
 def Db_test(label_file,**kwargs):
     #db_file,data_file,base_dir,id_dir,dis_dir,base_id
@@ -260,25 +296,7 @@ def Db_test(label_file,**kwargs):
     data_lines = data_in.readlines()
     dis_record = open("./output/distance_top1.txt",'w')
     dis_top2 = open("./output/distance_top2.txt",'w')
-    if config.torch_:
-        model_path = "../models/torch_models/resnet50m-xent-face1.pth.tar"
-        FaceModel = Deep_Face(model_path,256,128)
-    elif config.mx_:
-        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r50-am-lfw/model"
-        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r34-amf/model"
-        #model_path = "../models/mx_models/v1_bn/model" #9
-        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
-        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
-        #model_path = "../models/mx_models/mobile_model/model"
-        #model_path = "../models/mx_models/model-100/model"
-        #model_path = "../models/mx_models/model_prison/model"
-        #model_path = "../models/mx_models/model-r50/model"
-        #model_path = "../models/mx_models/model-100/model-v2/model"
-        model_path = "../models/mx_models/model-100/model-v3/modelresave"
-        epoch_num = 0 #9#2
-        img_size = [112,112]
-        FaceModel = mx_Face(model_path,epoch_num,img_size)
-    elif caffe_use:
+    if config.caffe_use:
         face_p1 = "../models/sphere/sph_2.prototxt"
         face_m1 = "../models/sphere/sph20_ms_4v5.caffemodel"
         face_p2 = "../models/mx_models/mobile_model/face-mobile.prototxt"
@@ -289,16 +307,30 @@ def Db_test(label_file,**kwargs):
             out_layer ='fc1'
         else:
             out_layer ='fc5'
-        FaceModel = FaceReg(face_p2,face_m2,out_layer)
+        FaceModel_1 = FaceReg(face_p1,face_m1,'fc5')
+        FaceModel_2 = FaceReg(face_p2,face_m2,out_layer)
+    elif config.mx_:
+        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r50-am-lfw/model"
+        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r34-amf/model"
+        #model_path = "../models/mx_models/v1_bn/model" #9
+        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
+        #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
+        #model_path = "../models/mx_models/mobile_model/model"
+        model_path1 = "../models/mx_models/model-100/model-org/modelresave"
+        #model_path = "../models/mx_models/model_prison/model"
+        #model_path = "../models/mx_models/model-r50/model"
+        #model_path = "../models/mx_models/model-100/model-v2/model"
+        model_path2 = "../models/mx_models/model-100/model-v3/modelresave"
+        epoch1_num = 0 #9#2
+        epoch2_num = 0
+        img_size = [112,112]
+        FaceModel_1 = mx_Face(model_path1,epoch1_num,img_size)
+        FaceModel_2 = mx_Face(model_path2,epoch2_num,img_size)
     else:
-        print("please select model frame")
+        print("please select a frame: caffe mxnet tensorflow")
     #mkdir save image dir
-    Face_features = ExtractFeatures(FaceModel)
-    def make_dirs(dir_path):
-        if os.path.exists(dir_path):
-            pass
-        else:
-            os.makedirs(dir_path)
+    Face1_features = ExtractFeatures(FaceModel_1)
+    Face2_features = ExtractFeatures(FaceModel_2)
     make_dirs(dis_dir)
     make_dirs(failed_dir)
     parm = args()
@@ -306,12 +338,6 @@ def Db_test(label_file,**kwargs):
     tpr = 0
     fpr = 0 
     idx_ = 0
-    def get_label(label_file):
-        f_r = open(label_file,'rb')
-        l_dict = pickle.load(f_r)
-        #print(l_dict.values())
-        f_r.close()
-        return l_dict
     db_names = []
     save_reg_dirs = []
     db_cnt_dict = dict()
@@ -319,14 +345,16 @@ def Db_test(label_file,**kwargs):
     #db_features = []
     for item_,line_one in enumerate(db_lines):
         line_one = line_one.strip()
-        base_feat = Face_features.extract_f(line_one,id_dir)
+        base_feat1 = Face1_features.extract_f(line_one,id_dir)
+        base_feat2 = Face2_features.extract_f(line_one,id_dir)
+        if base_feat1 is None or base_feat2 is None:
+            print("feature is None")
+            continue
+        base_feat = featuresProcess([base_feat1,base_feat2])
         one_name = line_one[:-4]
         db_names.append(one_name)
         face_db_dir = os.path.join(dis_dir,one_name)
         save_reg_dirs.append(face_db_dir)
-        if base_feat is None:
-            print("feature is None")
-            continue
         DB_FT.add_data(item_,base_feat)
         db_path = os.path.join(id_dir,line_one)
         db_paths_dict[one_name] = db_path
@@ -361,13 +389,16 @@ def Db_test(label_file,**kwargs):
         sys.stdout.write('\r>> deal with %d/%d' % (idx_,len(data_lines)))
         sys.stdout.flush()
         if config.face_detect:
-            querry_feat = Face_features.extract_f3(querry_line,base_dir)
+            querry_feat1 = Face1_features.extract_f3(querry_line,base_dir)
+            querry_feat2 = Face2_features.extract_f3(querry_line,base_dir)
         else:
-            querry_feat = Face_features.extract_f2(querry_line,base_dir)
-        if querry_feat is None:
+            querry_feat1 = Face1_features.extract_f2(querry_line,base_dir)
+            querry_feat2 = Face2_features.extract_f2(querry_line,base_dir)
+        if querry_feat1 is None or querry_feat2 is None:
             print("feature is None")
             continue
         else:
+            querry_feat = featuresProcess([querry_feat1,querry_feat2])
             idx_list,distance_list = DB_FT.findNeatest(querry_feat,2) 
             #print("distance, idx ",distance,idx)
             idx = idx_list[0]

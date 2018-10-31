@@ -88,11 +88,22 @@ class DB_Reg(object):
             #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r50-am-lfw/model"
             #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r34-amf/model"
             #model_path = "../models/mx_models/v1_bn/model" #9
+            #model_path = "../models/mx_models/model-100/model-v3/modelresave"
             epoch_num = 0 #9
             img_size = [112,112]
             FaceModel = mx_Face(model_path,epoch_num,img_size)
-        else:
-            FaceModel = FaceReg(0.7)
+        elif faceconfig.caffe_use:
+            face_p = "../models/sphere/sph_2.prototxt"
+            face_m = "../models/sphere/sph20_ms_4v5.caffemodel"
+            #face_p2 = "../models/mx_models/mobile_model/face-mobile.prototxt"
+            #face_m2 = "../models/mx_models/mobile_model/face-mobile.caffemodel"
+            if config.feature_1024:
+                out_layer = 'fc5_n'
+            elif config.insight:
+                out_layer ='fc1'
+            else:
+                out_layer ='fc5'
+            FaceModel = FaceReg(face_p,face_m,out_layer)
         self.FaceModel = FaceModel
         self.label_file = label_file
         self.id_dir = id_dir

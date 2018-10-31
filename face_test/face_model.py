@@ -36,8 +36,8 @@ def L2_distance(feature1,feature2,lenth):
     len1 = feature1.shape[0]
     len2 = feature2.shape[0]
     assert len1 ==lenth and len2==lenth
-    if config.norm:
-        loss = np.sqrt(np.sum(np.power((feature1-feature2),2))/lenth)
+    if 0:
+        loss = np.sqrt(np.sum(np.power((feature1-feature2),2)))
     else:
         mean1 = np.mean(feature1)
         mean2 = np.mean(feature2)
@@ -53,23 +53,43 @@ def L2_distance(feature1,feature2,lenth):
         loss =np.sqrt(np.sum(np.power((norm1-norm2),2))/lenth)
     return loss
 
+def L2_distance_(feature1,feature2,lenth):
+    print("feature shape: ",np.shape(feature1))
+    feature1 = np.asarray(feature1)
+    feature2 = np.asarray(feature2)
+    len1 = feature1.shape[0]
+    len2 = feature2.shape[0]
+    assert len1 ==lenth and len2==lenth
+    f1_mod = np.sum(np.power(feature1,2))
+    f2_mod = np.sum(np.power(feature2,2))
+    f1_f2 = np.sum(feature1 * feature2)
+    T = np.sqrt(f1_mod) * np.sqrt(f2_mod)
+    if T >0:
+        loss = 2.0 - 2.0 * f1_f2 / T
+    else:
+        loss = 2.0
+    return loss
+
 
 class FaceReg(object):
-    def __init__(self,threshold):
-        self.threshold = threshold
-        self.load_model()
+    def __init__(self,protxt,caffemodel,out_layer_name,threshold=0.5):
         caffe.set_device(0)
         caffe.set_mode_gpu()
+        self.threshold = threshold
+        self.face_p = protxt
+        self.face_m = caffemodel
+        self.out_layer = out_layer_name
+        self.load_model()
+
     def load_model(self):
+        '''
         if config.center_loss:
             face_p = "../models/center/face.prototxt"
             face_m = "../models/center/face.caffemodel"
         else:
-            #face_p = "../models/sphere/sph_2.prototxt"
+            face_p = "../models/sphere/sph_2.prototxt"
             #face_m = "../models/sphere/sph_2.caffemodel"
             #face_m = "../models/model-r50-am.caffemodel"
-            #face_p = "../models/center/center_loss.prototxt"
-            #face_p = "../models/sphere/sph_2.prototxt"
             if config.feature_1024:
                 face_p = "../models/sphere/sph_1.prototxt"
             #face_m = "../models/sphere/sph20_10811.caffemodel" #good
@@ -78,7 +98,7 @@ class FaceReg(object):
             #face_m = "../models/sphere/sph20_ms_v7.caffemodel"  #best good
             #face_m = "../models/sphere/sph20_ms_v8.caffemodel"  #the best good
             #face_m = "../models/sphere/sph20_ms_v9.caffemodel"   #fpr is best good
-            #face_m = "../models/sphere/sph20_ms_4v5.caffemodel"  # **the best
+            face_m = "../models/sphere/sph20_ms_4v5.caffemodel"  # **the best
             #face_m = "../models/sphere/sph20_ms_1024v1.caffemodel" #best for m=1
             #face_m = "../models/sphere/sph20_ms_1024v3.caffemodel"
             #face_m = "../models/sphere/sph_test.caffemodel"
@@ -87,12 +107,11 @@ class FaceReg(object):
             #face_m = "../models/sphere/sph20_ms_6v3.caffemodel" #good for m=1
             #face_m = "../models/sphere/sph20_ms_8v1.caffemodel"  # for m=2
             #face_m = "../models/sphere/sph20_ms_8v3.caffemodel" #good for m=1
-            #face_p = "../models/sphere/sph_64_model.prototxt"
-            #face_m = "../models/sphere/sph64_10811.caffemodel"
-            #face_m = "../models/sphere/sph64_ms_v1.caffemodel"
-            face_p = "../models/mx_models/mobile_model/face-mobile.prototxt"
-            face_m = "../models/mx_models/mobile_model/face-mobile.caffemodel"
-        self.face_net = caffe.Net(face_p,face_m,caffe.TEST)
+            if config.insight:
+                face_p = "../models/mx_models/mobile_model/face-mobile.prototxt"
+                face_m = "../models/mx_models/mobile_model/face-mobile.caffemodel"
+        '''
+        self.face_net = caffe.Net(self.face_p,self.face_m,caffe.TEST)
         print("face model load successful **************************************")
         if config.model_resave:
             caffe_model_path = "../models/sphere/sph_test.caffemodel"
@@ -126,12 +145,7 @@ class FaceReg(object):
         else:
             self.face_net.blobs['data'].data[...] = caffe_img
         net_out = self.face_net.forward()
-        if config.feature_1024:
-            features = net_out['fc5_n']
-        elif config.insight:
-            features = net_out['fc1']
-        else:
-            features = net_out['fc5']
+        features = net_out[self.out_layer]
         t1 = time.time()-t
         if config.time:
             print("caffe forward time cost: ",t1)
@@ -139,12 +153,16 @@ class FaceReg(object):
             feature_org = features[0]
             feature_flip = features[1]
             feature_sum = feature_org + feature_flip
+            '''
             f_mean = np.mean(feature_sum)
             f_std = np.std(feature_sum)
             features = (feature_sum - f_mean)/f_std
             #f_min = np.min(feature_sum)
             #f_max = np.max(feature_sum)
             #features = (feature_sum - f_min)/(f_max-f_min)
+            '''
+            _norm=np.linalg.norm(feature_sum)
+            features = feature_sum / _norm
         return np.reshape(features,(config.feature_lenth))
     def prob_cls(self,img):
         h,w,chal = img.shape
@@ -180,18 +198,14 @@ class FaceReg(object):
         return pred
     def calculateL2(self,feat1,feat2,c_type='euclidean'):
         assert np.shape(feat1)==np.shape(feat2)
-        if config.insight:
-            [len_,]= np.shape(feat1)
-            #print(np.shape(feat1))
-        else:
-            _,len_ = np.shape(feat1)
+        [len_,] = np.shape(feat1)
         #print("len ",len_)
         if c_type == "cosine":
             s_d = distance.cosine(feat1,feat2)
         elif c_type == "euclidean":
             #s_d = np.sqrt(np.sum(np.square(feat1-feat2)))
             s_d = distance.euclidean(feat1,feat2,w=1./len_)
-            #s_d = distance.euclidean(feat1,feat2,w=1)
+            #s_d = distance.euclidean(feat1,feat2)
         elif c_type == "correlation":
             s_d = distance.correlation(feat1,feat2)
         elif c_type == "braycurtis":
@@ -282,7 +296,7 @@ class Deep_Face(object):
 
 class mx_Face(object):
     def __init__(self,model_path,epoch_num,img_size,layer='fc1'):
-        ctx = mx.gpu()
+        ctx = mx.gpu(0)
         if config.mx_version:
             self.model_net = self.load_model2(ctx,img_size,model_path,epoch_num,layer)
         else:
@@ -293,6 +307,10 @@ class mx_Face(object):
         #sym,arg_params,aux_params = mx.model.load_checkpoint(model_path,epoch)
         #mod_net mx.mod.Module()
         self.model_net = mx.model.FeedForward.load(model_path,epoch_num,ctx=mx.gpu())
+    def display_model(self,sym):
+        data_shape = {"data":(1,3,112,112)}
+        net_show = mx.viz.plot_network(symbol=sym,shape=data_shape)  
+        net_show.render(filename="mxnet_rnet",cleanup=True)
 
     def load_model2(self,ctx, image_size, prefix,epoch_num,layer):
         print('loading',prefix, epoch_num)
@@ -301,6 +319,8 @@ class mx_Face(object):
         if config.debug:
             print("all layers ",all_layers.list_outputs()[-1])
         sym = all_layers[layer+'_output']
+        if config.display_model:
+            self.display_model(sym)
         model = mx.mod.Module(symbol=sym, context=ctx, data_names=('data',),label_names = None)
         #model.bind(data_shapes=[('data', (args.batch_size, 3, image_size[0], image_size[1]))], label_shapes=[('softmax_label', (args.batch_size,))])
         if config.feature_expand:

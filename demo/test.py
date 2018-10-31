@@ -59,17 +59,26 @@ def evalu_img(imgpath,min_size):
     cv2.namedWindow("test")
     cv2.moveWindow("test",1400,10)
     threshold = np.array([0.5,0.5,0.9])
-    detect_model = MTCNNDet(min_size,threshold)  
-    img = cv2.imread(imgpath)    
+    detect_model = MTCNNDet(min_size,threshold)
+    img = cv2.imread(imgpath)
     rectangles = detect_model.detectFace(img)
-    draw = img.copy()
-    for rectangle in rectangles:
-        score_label = str("{:.2f}".format(rectangle[4]))
-        cv2.putText(draw,score_label,(int(rectangle[0]),int(rectangle[1])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0))
-        cv2.rectangle(draw,(int(rectangle[0]),int(rectangle[1])),(int(rectangle[2]),int(rectangle[3])),(255,0,0),1)
-        for i in range(5,15,2):
-            cv2.circle(draw,(int(rectangle[i+0]),int(rectangle[i+1])),2,(0,255,0))
-    cv2.imshow("test",draw)
+    #draw = img.copy()
+    if rectangles is not None:
+        for rectangle in rectangles:
+            score_label = str("{:.2f}".format(rectangle[4]))
+            cv2.putText(img,score_label,(int(rectangle[0]),int(rectangle[1])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0))
+            cv2.rectangle(img,(int(rectangle[0]),int(rectangle[1])),(int(rectangle[2]),int(rectangle[3])),(255,0,0),1)
+            if len(rectangle) > 5:
+                if config.x_y:
+                    for i in range(5,15,2):
+                        cv2.circle(img,(int(rectangle[i+0]),int(rectangle[i+1])),2,(0,255,0))
+                else:
+                    rectangle = rectangle[5:]
+                    for i in range(5):
+                        cv2.circle(img,(int(rectangle[i]),int(rectangle[i+5])),2,(0,255,0))
+    else:
+        print("No face detected")
+    cv2.imshow("test",img)
     cv2.waitKey(0)
     #cv2.imwrite('test.jpg',draw)
 
@@ -146,12 +155,17 @@ def save_cropfromtxt(file_in,base_dir,save_dir,crop_size):
     def label_show(img,rectangles):
         for rectangle in rectangles:
             score_label = str("{:.2f}".format(rectangle[4]))
-            #score_label = str(1.0)
             cv2.putText(img,score_label,(int(rectangle[0]),int(rectangle[1])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0))
             cv2.rectangle(img,(int(rectangle[0]),int(rectangle[1])),(int(rectangle[2]),int(rectangle[3])),(255,0,0),1)
-            if len(rectangles) > 5:
-                for i in range(5,15,2):
-                    cv2.circle(img,(int(rectangle[i+0]),int(rectangle[i+1])),2,(0,255,0))
+            if len(rectangle) > 5:
+                if config.x_y:
+                    for i in range(5,15,2):
+                        cv2.circle(img,(int(rectangle[i+0]),int(rectangle[i+1])),2,(0,255,0))
+                else:
+                    rectangle = rectangle[5:]
+                    for i in range(5):
+                        cv2.circle(img,(int(rectangle[i]),int(rectangle[i+5])),2,(0,255,0))
+        
     def sort_box(boxes_or):
         boxes = np.array(boxes_or)
         x1 = boxes[:,0]
@@ -369,3 +383,7 @@ if __name__ == "__main__":
         save_cropfromtxt(f_in,base_dir,save_dir,img_size)
     elif cmd_type == 'video':
         save_cropfromvideo(f_in,base_name,save_dir,save_dir2,img_size)
+    elif cmd_type == 'imgtest':
+        evalu_img(p1,parm.min_size)
+    else:
+        print("No cmd run")
