@@ -262,7 +262,7 @@ def get_label(label_file):
     f_r.close()
     return l_dict
 
-def featuresProcess(feat_list):
+def featuresProcess1(feat_list):
     same_shape = np.shape(feat_list[0]) 
     features = feat_list[0]
     if len(feat_list) >1:
@@ -272,7 +272,7 @@ def featuresProcess(feat_list):
         _norm=np.linalg.norm(features)
         features /= _norm
     return features 
-def featuresProcess2(feat_list):
+def featuresProcess(feat_list):
     features = np.asarray(feat_list[0])
     if len(feat_list) > 1:
         for fet in feat_list[1:]:
@@ -319,7 +319,7 @@ def Db_test(label_file,**kwargs):
         model_path1 = "../models/mx_models/model-100/model-org/modelresave"
         #model_path = "../models/mx_models/model_prison/model"
         #model_path = "../models/mx_models/model-r50/model"
-        #model_path = "../models/mx_models/model-100/model-v2/model"
+        #model_path2 = "../models/mx_models/model-100/model-v2/modelresave"
         model_path2 = "../models/mx_models/model-100/model-v3/modelresave"
         epoch1_num = 0 #9#2
         epoch2_num = 0

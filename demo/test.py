@@ -28,9 +28,9 @@ from align import Align_img , alignImg
 
 def args():
     parser = argparse.ArgumentParser(description="mtcnn caffe")
-    parser.add_argument('--file-in',type=str,dest='file_in',default='None',\
+    parser.add_argument('--file-in',type=str,dest='file_in',default=None,\
                         help="the file input path")
-    parser.add_argument('--min-size',type=int,dest='min_size',default=50,\
+    parser.add_argument('--min-size',type=int,dest='min_size',default=24,\
                         help="scale img size")
     parser.add_argument('--img-path1',type=str,dest='img_path1',default="test1.jpg",\
                         help="img1 saved path")
@@ -59,11 +59,23 @@ def evalu_img(imgpath,min_size):
     cv2.namedWindow("test")
     cv2.moveWindow("test",1400,10)
     threshold = np.array([0.5,0.5,0.9])
+    base_name = "test_img"
+    save_dir = './output'
+    crop_size = [112,112]
     detect_model = MTCNNDet(min_size,threshold)
     img = cv2.imread(imgpath)
     rectangles = detect_model.detectFace(img)
     #draw = img.copy()
     if rectangles is not None:
+        points = np.array(rectangles)
+        points = points[:,5:]
+        points_list = points.tolist()
+        crop_imgs = alignImg(img,crop_size,points_list)
+        for idx_cnt,img_out in enumerate(crop_imgs):
+            savepath = os.path.join(save_dir,base_name+'_'+str(idx_cnt)+".jpg")
+            #img_out = cv2.resize(img_out,(96,112))
+            #cv2.imshow("test",img_out)
+            cv2.imwrite(savepath,img_out)
         for rectangle in rectangles:
             score_label = str("{:.2f}".format(rectangle[4]))
             cv2.putText(img,score_label,(int(rectangle[0]),int(rectangle[1])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0))
@@ -85,14 +97,15 @@ def evalu_img(imgpath,min_size):
 def main():
     cv2.namedWindow("test")
     cv2.moveWindow("test",1400,10)
-    threshold = [0.5,0.9,0.9]
+    threshold = [0.99,0.99,0.9]
     imgpath = "test2.jpg"
     parm = args()
     min_size = parm.min_size
     file_in = parm.file_in
     detect_model = MTCNNDet(min_size,threshold)
-    if file_in is 'None':
+    if file_in is None:
         cap = cv2.VideoCapture(0)
+        print("read camera")
     else:
         cap = cv2.VideoCapture(file_in)
     if not cap.isOpened():
@@ -109,8 +122,13 @@ def main():
                     cv2.putText(draw,score_label,(int(rectangle[0]),int(rectangle[1])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,0))
                     cv2.rectangle(draw,(int(rectangle[0]),int(rectangle[1])),(int(rectangle[2]),int(rectangle[3])),(255,0,0),1)
                     if len(rectangle) > 5:
-                        for i in range(5,15,2):
-                            cv2.circle(draw,(int(rectangle[i+0]),int(rectangle[i+1])),2,(0,255,0))
+                        if config.x_y:
+                            for i in range(5,15,2):
+                                cv2.circle(draw,(int(rectangle[i+0]),int(rectangle[i+1])),2,(0,255,0))
+                        else:
+                            rectangle = rectangle[5:]
+                            for i in range(5):
+                                cv2.circle(draw,(int(rectangle[i]),int(rectangle[i+5])),2,(0,255,0))
             cv2.imshow("test",draw)
             q=cv2.waitKey(10) & 0xFF
             if q == 27 or q ==ord('q'):
@@ -364,6 +382,7 @@ def save_cropfromvideo(file_in,base_name,save_dir,save_dir2,crop_size):
     v_cap.release()
     cv2.destroyAllWindows()
 
+
 if __name__ == "__main__":
     #main()
     parm = args()
@@ -385,5 +404,7 @@ if __name__ == "__main__":
         save_cropfromvideo(f_in,base_name,save_dir,save_dir2,img_size)
     elif cmd_type == 'imgtest':
         evalu_img(p1,parm.min_size)
+    elif cmd_type == 'camera':
+        main()
     else:
         print("No cmd run")

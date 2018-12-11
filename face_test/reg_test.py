@@ -55,6 +55,8 @@ def args():
                         help="images saved dir")
     parser.add_argument('--failed-dir',type=str,dest='failed_dir',default="./failed_dir",\
                         help="fpr saved dir")
+    parser.add_argument('--top2-failed-dir',type=str,dest='top2_failed_dir',default="./top2_failed_dir",\
+                        help="fpr saved dir")
     parser.add_argument('--base-id', default=0,dest='base_id', type=int,help='label plus the id')
     parser.add_argument('--cmd-type', default="dbtest",dest='cmd_type', type=str,\
                         help="which code to run: dbtest,imgtest ")
@@ -93,8 +95,31 @@ def compare_f(p1,p2):
     f1 = np.loadtxt(p1)
     f2 = np.loadtxt(p2)
     print(f1.shape,f2.shape)
-    distance = L2_distance(f1,f2,512)
-    print(distance)
+    distance = L2_distance(f1,f2,config.feature_lenth)
+    distance_ = L2_distance_(f1,f2,config.feature_lenth)
+    print(distance,distance_)
+
+def compare_f_(p1,p2):
+    f1 = open(p1,'r')
+    f2 = open(p2,'r')
+    txt1 = f1.readlines()
+    txt2 = f2.readlines()
+    #print(txt1)
+    split1 = txt1[0].strip().split(',')
+    split2 = txt2[0].strip().split(',')
+    print(len(split1),len(split2))
+    npa1 = map(float,split1)
+    npa2 = map(float,split2)
+    npa1 = np.array(npa1)
+    npa2 = np.array(npa2)
+    print(npa1.shape,npa2.shape)
+    distance = L2_distance(npa1,npa2,512)
+    distance_ = L2_distance_(npa1,npa2,512)
+    print(distance,distance_)
+
+def L1_Sum(feature):
+    fe_abs = np.abs(feature)
+    return np.sum(fe_abs)
 
 def compare_img(path1,path2,model_path):
     parm = args()
@@ -106,22 +131,23 @@ def compare_img(path1,path2,model_path):
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-r100-ii/model"
         #model_path = "/home/lxy/Develop/Center_Loss/arcface/insightface/models/model-y1-test2/model"
         #model_path = "../models/mx_models/mobile_model/model"
-        model_path = "../models/mx_models/model-100/model-v3/modelresave"
+        model_path = "../models/mx_models/model-100/model-org/modelresave"
+        #model_path = "../models/mx_models/model-100/model-org/modelresave"
         epoch_num = 0  #9#2
         img_size = [112,112]
         FaceModel = mx_Face(model_path,epoch_num,img_size)
     elif config.caffe_use:
-        face_p1 = "../models/sphere/sph_2.prototxt"
-        face_m1 = "../models/sphere/sph20_ms_4v5.caffemodel"
-        face_p2 = "../models/mx_models/mobile_model/face-mobile.prototxt"
-        face_m2 = "../models/mx_models/mobile_model/face-mobile.caffemodel"
+        #face_p = "../models/sphere/sph_2.prototxt"
+        #face_m = "../models/sphere/sph20_ms_4v5.caffemodel"
+        face_p = "../models/mx_models/mobile_model/face-mobile.prototxt"
+        face_m = "../models/mx_models/mobile_model/face-mobile.caffemodel"
         if config.feature_1024:
             out_layer = 'fc5_n'
         elif config.insight:
             out_layer ='fc1'
         else:
             out_layer ='fc5'
-        FaceModel = FaceReg(face_p2,face_m2,out_layer)
+        FaceModel = FaceReg(face_p,face_m,out_layer)
     else:
         img_size = [112,112]
         FaceModel = TF_Face_Reg(model_path,img_size,parm.gpu)
@@ -162,6 +188,9 @@ def compare_img(path1,path2,model_path):
             feat1 = norm_feat(feat1)
             #feat2 = std_norm(feat2)
             #feat1 = std_norm(feat1)
+        d1 = L1_Sum(feat1)
+        d2 = L1_Sum(feat2)
+        print("L1 regularization img1,img2:",d1,d2)
         dis_s = FaceModel.calculateL2(feat1,feat2)
         dis2 = FaceModel.calculateL2(feat1,feat2,'cosine')
         dis3 = FaceModel.calculateL2(feat1,feat2,'correlation')
@@ -254,12 +283,15 @@ def Db_test(label_file,**kwargs):
     dis_dir = kwargs.get('saved_dir',None)
     base_id = kwargs.get('base_id',None)
     failed_dir = kwargs.get('failed_dir',None)
+    top2_failed_dir = kwargs.get('top2_failed_dir',None)
     db_in = open(db_file,'r')
     data_in = open(data_file,'r')
     db_lines = db_in.readlines()
     data_lines = data_in.readlines()
     dis_record = open("./output/distance_top1.txt",'w')
     dis_top2 = open("./output/distance_top2.txt",'w')
+    dis_record.write("filename,distance,l1_regular,reg_fg\n")
+    dis_top2.write("filename,confidence,confidence2,l1_regular,reg_fg\n")
     if config.torch_:
         model_path = "../models/torch_models/resnet50m-xent-face1.pth.tar"
         FaceModel = Deep_Face(model_path,256,128)
@@ -273,12 +305,14 @@ def Db_test(label_file,**kwargs):
         #model_path = "../models/mx_models/model-100/model"
         #model_path = "../models/mx_models/model_prison/model"
         #model_path = "../models/mx_models/model-r50/model"
-        #model_path = "../models/mx_models/model-100/model-v2/model"
-        model_path = "../models/mx_models/model-100/model-v3/modelresave"
+        #model_path = "../models/mx_models/model-100/model-v2/model" #5
+        #model_path = "../models/mx_models/model-100/model-v3/model" #1
+        #model_path = "../models/mx_models/model-100/model-v4/model" #11
+        model_path = "../models/mx_models/model-100/model-org/modelresave"
         epoch_num = 0 #9#2
         img_size = [112,112]
         FaceModel = mx_Face(model_path,epoch_num,img_size)
-    elif caffe_use:
+    elif config.caffe_use:
         face_p1 = "../models/sphere/sph_2.prototxt"
         face_m1 = "../models/sphere/sph20_ms_4v5.caffemodel"
         face_p2 = "../models/mx_models/mobile_model/face-mobile.prototxt"
@@ -300,7 +334,10 @@ def Db_test(label_file,**kwargs):
         else:
             os.makedirs(dir_path)
     make_dirs(dis_dir)
-    make_dirs(failed_dir)
+    if failed_dir is not None:
+        make_dirs(failed_dir)
+    if top2_failed_dir is not None:
+        make_dirs(top2_failed_dir)
     parm = args()
     DB_FT = Annoy_DB(config.feature_lenth)
     tpr = 0
@@ -368,7 +405,11 @@ def Db_test(label_file,**kwargs):
             print("feature is None")
             continue
         else:
-            idx_list,distance_list = DB_FT.findNeatest(querry_feat,2) 
+            if config.getL1:
+                l1_dis = L1_Sum(querry_feat)
+            else:
+                l1_dis = 0
+            idx_list,distance_list = DB_FT.findNeatest(querry_feat,3) 
             #print("distance, idx ",distance,idx)
             idx = idx_list[0]
             img_name = db_names[idx] 
@@ -387,15 +428,10 @@ def Db_test(label_file,**kwargs):
                     save_condition = 0
             else:
                 save_condition = reg_condition
-            #dist_path = os.path.join(img_path,img_name+"_"+str(img_cnt)+".jpg")
-            #if config.reg_fromlabel:
-             #   dist_path = os.path.join(img_dir,que_spl[1])
-            #else:
-             #   dist_path = os.path.join(img_dir,querry_line)
-            #print(dist_path)
             print("distance ",distance_list)
-            dis_record.write("%.3f\n" %(distance_list[0]))
-            dis_top2.write("%.3f\n" %(distance_list[1] - distance_list[0]))
+            #dis_record.write("%.3f\n" %(distance_list[0]))
+            #dis_top2.write("%.3f\n" %(distance_list[1] - distance_list[0]))
+            reg_fg = 0
             #if distance_list[0] <= config.top1_distance and (distance_list[1] - distance_list[0]) >= Threshold_Value:
             if save_condition:
                 print("distance: ",distance_list[0])
@@ -408,15 +444,18 @@ def Db_test(label_file,**kwargs):
                 db_cnt_dict[img_name] = img_cnt+1 
                 if db_cnt_dict[img_name] == 1 and config.save_idimg:
                     org_id_path = db_paths_dict[img_name]
-                    dist_id_path = os.path.join(img_dir,img_name+".jpg")
+                    #dist_id_path = os.path.join(img_dir,img_name+".jpg")
+                    dist_id_path = os.path.join(img_dir,"front.jpg")
                     shutil.copyfile(org_id_path,dist_id_path)
                 if config.reg_fromlabel:
                     print("real and pred ",real_label,pred_label,querry_line)
                     if int(pred_label) == int(real_label):
                         tpr+=1
+                        reg_fg = 1
                         print("*************")
                     else:
                         fpr+=1
+                        reg_fg = -1
                         if config.save_failedimg:
                             failed_img_dir = os.path.join(failed_dir,key_que)
                             make_dirs(failed_img_dir)
@@ -440,7 +479,13 @@ def Db_test(label_file,**kwargs):
                 make_dirs(failed_img_dir)
                 failed_img_path = os.path.join(failed_img_dir,querry_line)
                 shutil.copyfile(org_path,failed_img_path)
-                
+            elif config.save_top2_failedimg :
+                failed_img_dir = os.path.join(top2_failed_dir,img_name)
+                make_dirs(failed_img_dir)
+                failed_img_path = os.path.join(failed_img_dir,que_spl[1])
+                shutil.copyfile(org_path,failed_img_path)
+            dis_record.write("%s,%.3f,%.3f,%d\n" %(org_path,distance_list[0],l1_dis,reg_fg))
+            dis_top2.write("%s,%.3f,%.3f,%.3f,%d\n" %(org_path,distance_list[1] - distance_list[0],distance_list[2] - distance_list[0],l1_dis,reg_fg))
     right_id =0
     not_reg_id = []
     for key_name in db_cnt_dict.keys():
@@ -498,6 +543,7 @@ if __name__ == "__main__":
     cmd_type = parm.cmd_type
     label_file = parm.label_file
     failed_dir = parm.failed_dir
+    top2_dir = parm.top2_failed_dir
     #confuMat_test(f_in,base_dir,id_dir)
     #test()
     #feature_generate(f_in,base_dir)
@@ -506,9 +552,9 @@ if __name__ == "__main__":
         #label_file = "prison_label_218.pkl"
         Db_test(label_file,db_file=db_file,data_file=data_file,\
                 base_dir=base_dir,id_dir=id_dir,saved_dir=saved_dir,\
-                base_id=base_id,failed_dir=failed_dir)
+                base_id=base_id,failed_dir=failed_dir,top2_failed_dir=top2_dir)
     elif cmd_type== 'imgtest':
         compare_img(p1,p2,model_path)
-    else:
+    elif cmd_type=='comparefile':
         compare_f(p1,p2)
     #DB_Pred(label_file,db_file,data_file,base_dir,id_dir,saved_dir,base_id)

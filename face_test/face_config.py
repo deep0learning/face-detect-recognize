@@ -24,13 +24,13 @@ config.feature_expand = 0
 # whether use gamma enhancement for database images
 config.db_enhance = 0
 # the subtraction of  top 2 distances, threshold value
-config.confidence = 0.1
+config.confidence = 0.0001
 # the nearest person, distance threshold value
-config.top1_distance = 1.2
+config.top1_distance = 2
 # whether to load center_loss caffemodel
 config.center_loss= 0
 # whether to use image enhance to process the faces for face recognition
-config.face_enhance = 1
+config.face_enhance = 0
 # whether to print the detect and recognize consuming time
 config.time = 0
 # after load caffe models successful, resaving the caffemodel
@@ -46,7 +46,7 @@ config.box_widen = 0
 #whether to run face detect
 config.face_detect = 0
 #whether the img saved dir name is 11****   1:6666; 0: 116666
-config.dir_label = 0
+config.dir_label = 1
 #whether to show the images
 config.show_img = 0
 #whether to save wrong recognize imgs 
@@ -56,8 +56,12 @@ config.save_idimg = 1
 #if the input images has label
 config.reg_fromlabel = 1
 # if pass the lenth of image name less 8
-config.img_lenth8 = 1
+config.img_lenth8 = 0
 #using frame_num to control recognition result
 config.use_framenum = 0
 # whether to display and save model structure for mxnet
 config.display_model = 0
+# whether to save failed reg imgs 1:save
+config.save_top2_failedimg = 1
+#get L1 of features
+config.getL1 = 1
