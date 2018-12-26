@@ -80,6 +80,10 @@ def get_by_ratio(x,new_x,y):
     return np.floor(new_y)
 
 def Img_Pad(img,crop_size):
+    '''
+    img: input img data
+    crop_size: [h,w]
+    '''
     img_h,img_w = img.shape[:2]
     d_h,d_w = crop_size
     pad_l,pad_r,pad_u,pad_d = [0,0,0,0]
@@ -155,10 +159,10 @@ def Img_Pad(img,crop_size):
     elif img_w==d_w and img_h==d_h:
         img_out = img
     if not [pad_l,pad_r,pad_u,pad_d] == [0,0,0,0] :
-        color = [0,0,0]
+        color = [255,255,255]
         #print("padding",[pad_l,pad_r,pad_u,pad_d])
         img_out = cv2.copyMakeBorder(img_out,top=int(pad_u),bottom=int(pad_d),left=int(pad_l),right=int(pad_r),\
-                                    borderType=cv2.BORDER_REPLICATE)#BORDER_CONSTANT,value=color) #BORDER_REPLICATEs
+                                    borderType=cv2.BORDER_CONSTANT,value=color) #BORDER_REPLICATE
     return img_out
 
 

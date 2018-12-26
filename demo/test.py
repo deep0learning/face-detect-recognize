@@ -10,6 +10,7 @@
 #description  face detect testing caffe model
 ####################################################
 import sys
+from tqdm import tqdm
 sys.path.append('.')
 sys.path.append('/home/lxy/caffe/python')
 import os
@@ -25,6 +26,8 @@ from mtcnn_config import config
 from Detector import FaceDetector_Opencv,MTCNNDet
 import shutil
 from align import Align_img , alignImg
+sys.path.append(os.path.join(os.path.dirname(__file__),'../face_test'))
+from face_model import Img_Pad
 
 def args():
     parser = argparse.ArgumentParser(description="mtcnn caffe")
@@ -58,16 +61,20 @@ def args():
 def evalu_img(imgpath,min_size):
     cv2.namedWindow("test")
     cv2.moveWindow("test",1400,10)
-    threshold = np.array([0.5,0.5,0.9])
+    threshold = np.array([0.3,0.3,0.7])
     base_name = "test_img"
     save_dir = './output'
     crop_size = [112,112]
     detect_model = MTCNNDet(min_size,threshold)
     img = cv2.imread(imgpath)
+    h,w = img.shape[:2]
+    if config.img_downsample and h > 1000:
+        img = img_ratio(img,240)
     rectangles = detect_model.detectFace(img)
     #draw = img.copy()
-    if rectangles is not None:
+    if len(rectangles)>0:
         points = np.array(rectangles)
+        #print('rec shape',points.shape)
         points = points[:,5:]
         points_list = points.tolist()
         crop_imgs = alignImg(img,crop_size,points_list)
@@ -93,6 +100,12 @@ def evalu_img(imgpath,min_size):
     cv2.imshow("test",img)
     cv2.waitKey(0)
     #cv2.imwrite('test.jpg',draw)
+
+def show_formtxt(txt_file,min_size):
+    f_r = open(txt_file)
+    lines = f_r.readlines()
+    for line_one in lines:
+        evalu_img(line_one.strip(),min_size)
 
 def main():
     cv2.namedWindow("test")
@@ -134,7 +147,14 @@ def main():
             if q == 27 or q ==ord('q'):
                 break
         cap.release()
-        cv2.destroyAllWindows()   
+        cv2.destroyAllWindows()
+
+def img_ratio(img,img_h):
+    h,w,c = img.shape
+    ratio_ = float(h) / float(w)
+    img_w = img_h / ratio_
+    img_out = cv2.resize(img,(int(img_w),int(img_h)))
+    return img_out
 
 def save_cropfromtxt(file_in,base_dir,save_dir,crop_size):
     '''
@@ -144,9 +164,10 @@ def save_cropfromtxt(file_in,base_dir,save_dir,crop_size):
     fun: saved id images, save name is the same input image
     '''
     f_ = open(file_in,'r')
+    failed_w = open('./output/failed_face3.txt','w')
     lines_ = f_.readlines()
-    min_size = 24
-    threshold = np.array([0.5,0.8,0.9])
+    min_size = 15
+    threshold = np.array([0.3,0.3,0.7])
     detect_model = MTCNNDet(min_size,threshold) 
     #model_path = "../models/haarcascade_frontalface_default.xml"
     #detect_model = FaceDetector_Opencv(model_path)
@@ -196,17 +217,22 @@ def save_cropfromtxt(file_in,base_dir,save_dir,crop_size):
         #print(boxes_or[0])
         idx = map(int,I)
         return boxes[idx[:]].tolist()
-    def img_ratio(img,img_h):
-        h,w,c = img.shape
-        ratio_ = float(h) / float(w)
-        img_w = img_h / ratio_
-        img_out = cv2.resize(img,(int(img_w),int(img_h)))
-        return img_out
-    for line_1 in lines_:
+    if config.show:
+        cv2.namedWindow("src")
+        cv2.namedWindow("crop")
+        cv2.moveWindow("crop",650,10)
+        cv2.moveWindow("src",100,10)
+    total_item = len(lines_)
+    for i in tqdm(range(total_item)):
+        line_1 = lines_[i]
         line_1 = line_1.strip()
         img_path = os.path.join(base_dir,line_1)
-        img = cv2.imread(img_path) 
-        img = img_ratio(img,320)
+        img = cv2.imread(img_path)
+        if img is None:
+            continue
+        h,w = img.shape[:2]
+        if config.img_downsample and min(w,h) > 1000:
+            img = img_ratio(img,240)
         line_s = line_1.split("/")  
         img_name = line_s[-1]
         new_dir = '/'.join(line_s[:-1]) 
@@ -214,9 +240,24 @@ def save_cropfromtxt(file_in,base_dir,save_dir,crop_size):
         if len(rectangles)> 0:
             idx_cnt+=1
             rectangles = sort_box(rectangles)
-            img_out = img_crop(img,rectangles[0])
-            #savepath = os.path.join(save_dir,str(idx_cnt)+".jpg")
-            img_out = cv2.resize(img_out,(crop_size[1],crop_size[0]))
+            if not config.crop_org:
+                points = np.array(rectangles)
+                points = points[:,5:]
+                points_list = points.tolist()
+                points_list = [points_list[0]]
+                img_out = alignImg(img,crop_size,points_list)
+                img_out = img_out[0]
+            else:
+                img_out = img_crop(img,rectangles[0])
+                #savepath = os.path.join(save_dir,str(idx_cnt)+".jpg")
+                if config.imgpad:
+                    img_out = Img_Pad(img_out,crop_size)
+                else:
+                    img_out = cv2.resize(img_out,(crop_size[1],crop_size[0]))
+            if config.highway:
+                if line_1[0] == '-':
+                    #line_1 = line_1[1:-4] +'.jpg'
+                    line_1 = line_1[1:]
             savepath = os.path.join(save_dir,line_1)
             '''
             savedir = os.path.join(save_dir,new_dir)
@@ -229,14 +270,21 @@ def save_cropfromtxt(file_in,base_dir,save_dir,crop_size):
                 shutil.copyfile(img_path,savepath)
             '''
             cv2.imwrite(savepath,img_out)
-            cv2.waitKey(1000)
+            cv2.waitKey(10)
             #cv2.imwrite(savepath,img)
-            label_show(img,rectangles)
-            cv2.imshow("crop",img_out)
+            if config.show:
+                label_show(img,rectangles)
+                cv2.imshow("crop",img_out)
+                cv2.waitKey(1000)
         else:
+            failed_w.write(img_path)
+            failed_w.write('\n')
             print("failed ",img_path)
-        cv2.imshow("test",img)
-        cv2.waitKey(10)
+        if config.show:
+            cv2.imshow("src",img)
+            cv2.waitKey(10)
+    failed_w.close()
+    f_.close()
 
 
 def save_cropfromvideo(file_in,base_name,save_dir,save_dir2,crop_size):
@@ -406,5 +454,7 @@ if __name__ == "__main__":
         evalu_img(p1,parm.min_size)
     elif cmd_type == 'camera':
         main()
+    elif cmd_type == 'showtxt':
+        show_formtxt(f_in,parm.min_size)
     else:
         print("No cmd run")

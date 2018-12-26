@@ -17,4 +17,12 @@ config.crop_org = 0
 config.x_y = 0
 #if box_widen = 1, the boxes got by face detection model output , will be widened. used for images to build database
 config.box_widen = 0
-config.id_box_widen = 0
+config.id_box_widen = 1
+#whether to downsample img to short size is 320
+config.img_downsample = 1
+#whether to keep the original ratio to get ouput size
+config.imgpad = 0
+# whether to get the id face for highway data
+config.highway = 1
+# whether to show the picture
+config.show = 0
