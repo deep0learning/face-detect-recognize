@@ -2,7 +2,7 @@ from easydict import EasyDict
 
 config = EasyDict()
 # if caffe_use=1, face_model.py file will load caffe model to generate face features for face recognition
-config.caffe_use = 0
+config.caffe_use = 1
 # The value of feature_lenth is 512 or 256. The length of the feature is determined by the dimension of the feature
 config.feature_lenth = 512 #256#1024
 # to load the insightface caffemodel
@@ -12,7 +12,7 @@ config.label = 1
 # if torch_=1, will load the pytorch model
 config.torch_ = 0
 #if mx_=1, will load the mxnet model
-config.mx_ = 1
+config.mx_ = 0
 #if debug=1,will pring information among  all the face reg files
 config.debug = 0
 #in mxnet,used in face_model.py, mx_version to select the method of loading the mxnet model
@@ -46,7 +46,7 @@ config.box_widen = 0
 #whether to run face detect
 config.face_detect = 0
 #whether the img saved dir name is 11****   1:6666; 0: 116666
-config.dir_label = 1
+config.dir_label = 0
 #whether to show the images
 config.show_img = 0
 #whether to save wrong recognize imgs 
@@ -65,3 +65,5 @@ config.display_model = 0
 config.save_top2_failedimg = 1
 #get L1 of features
 config.getL1 = 1
+#run test highway dataset
+config.highway = 0
