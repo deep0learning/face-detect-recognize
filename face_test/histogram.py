@@ -17,6 +17,7 @@ import argparse
 import shutil
 from tqdm import tqdm
 import os
+import cPickle as pickle
 
 
 def params():
@@ -37,7 +38,14 @@ def params():
             default='./base_imgs/',help='paths of images saved')
     parser.add_argument('--out-file',dest='out_file',type=str,\
             default='record_out.csv',help='paths to save')
-    parser.add_argument('--command',type=str,default='static3',help='run fun: static2 static3 copyfile compare')
+    parser.add_argument('--command',type=str,default='static3',\
+                        help='run fun: static2 static3 copyfile compare tpr recog')
+    parser.add_argument('--label-file',dest='label_file',type=str,\
+                        default=None,help='name to label dict file')
+    parser.add_argument('--top1-thres',dest='top1_thres',type=float,\
+            default=2.0,help='threshold value of top1')
+    parser.add_argument('--conf-thres',dest='conf_thres',type=float,\
+            default=0.0,help='threshold value of confidence')
     return parser.parse_args()
 
 
@@ -177,14 +185,6 @@ def plot_continue_color(ax_data,ay_data,color_data,key_name):
     #plt.setp(ax1.get_xticklabels(), fontsize=6)
     # share x only
     plt.savefig("./output/%s.png" % key_name,format='png')
-    plt.show()
-    
-def test():
-    a = [1,2,3,3,4,5]
-    b = [0.3,0.7,0.3,0.4,0.3,0.5]
-    fig = plt.figure(num=0,figsize=(10,10))
-    ax = fig.add_subplot(111)
-    plt.scatter(a,b,alpha=0.5)
     plt.show()
 
 def plot3_colors(ax_data,ay_data,color_data,key_name):
@@ -379,14 +379,6 @@ def statics_top3data(data1,data2,out_file):
     dis1_data = np.array([round(tp,3) for tp in dis1])
     dis2_data = np.array([round(tp,3) for tp in dis2])
     #select top2-top1 >=0.1
-    '''
-    top3_idx = np.where(dis2_data >=0.1)
-    print("top3 indx",np.shape(top3_idx))
-    reg_data = reg_data[top3_idx]
-    dis1_data = dis1_data[top3_idx]
-    dis2_data = dis2_data[top3_idx]
-    color_data = color_data[top3_idx]
-    '''
     #select fpr tpr
     tpr_inx = np.where(reg_data==1)
     fpr_inx = np.where(reg_data==-1)
@@ -401,12 +393,6 @@ def statics_top3data(data1,data2,out_file):
         dis2_fpr = dis2_data[fpr_inx]
         color_fpr = color_data[fpr_inx]
         dis3_fpr = fpr_data+dis2_fpr
-    '''
-    out_dict['top12'] = tpr_data
-    out_dict['top23'] = dis2_tpr
-    out_dict['top12'] = fpr_data
-    out_dict['top23'] = dis_fpr
-    '''
     #write_data(out_file,out_dict)
     threshold = 0.12
     threshold_idx = np.where(dis3_fpr<=threshold) #tpr:338
@@ -440,6 +426,7 @@ def get_Far_roc(data_dict,threshold):
     tar_data = []
     far_data = []
     p_data = []
+    f_w.write("confidence,tar,far,precision,tpr_num,fpr_num\n")
     for tmp in threshold_list:
         keep_conf_idx = np.where(conf_data > tmp)
         #print('conf',len(keep_conf_idx[0]))
@@ -448,10 +435,13 @@ def get_Far_roc(data_dict,threshold):
         fg_tmp_data = fg_data[keep_conf_idx]
         tpr_indx = np.where(fg_tmp_data==1)
         fpr_indx = np.where(fg_tmp_data== -1)
-        tar_data.append(len(tpr_indx[0])/total_num)
-        far_data.append(len(fpr_indx[0])/total_num)
-        p_data.append(len(tpr_indx[0])/(float(len(keep_conf_idx[0]))+1))
-        f_w.write("tpr:{},fpr:{}\n".format(len(tpr_indx[0]),len(fpr_indx[0])))
+        tar = len(tpr_indx[0])/total_num
+        far = len(fpr_indx[0])/total_num
+        p = len(tpr_indx[0])/(float(len(keep_conf_idx[0]))+1)
+        tar_data.append(tar)
+        far_data.append(far)
+        p_data.append(p)
+        f_w.write("{}\t{:.4f}\t{:.4f}\t{:.4f}\t{}\t{}\n".format(tmp,tar,far,p,len(tpr_indx[0]),len(fpr_indx[0])))
     f_w.close()
     plot_fpr_roc(tar_data,far_data,p_data,threshold_list)
 
@@ -483,7 +473,130 @@ def plot_fpr_roc(tar_data,far_data,tp_data,ax_data):
     #leg = plt.legend(loc='best', ncol=2, mode="expand", shadow=True, fancybox=True)
     plt.savefig("./output/result.png" ,format='png')
     plt.show()
-    
+
+def get_label(label_file):
+    f_r = open(label_file,'rb')
+    l_dict = pickle.load(f_r)
+    #print(l_dict.values())
+    f_r.close()
+    return l_dict
+def get_invt_dict(label_dict):
+    keys = label_dict.keys()
+    values = label_dict.values()
+    label2name = dict()
+    for key_t,value_t in zip(keys,values):
+        label2name[value_t] = key_t
+    return label2name
+def make_dir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    else:
+        pass
+
+def statistics_record(data_dict,threshold,label_file,save_dir):
+    make_dir(save_dir)
+    dest_id_dict = dict()
+    org_id_dict = dict()
+    org_wrong_dict = dict()
+    conf_data = data_dict['confidence']
+    top1_data = data_dict['distance']
+    fg_data = data_dict['reg_fg']
+    real_label_list = data_dict['real_label']
+    pred_label_list = data_dict['pred_label']
+    org_imgpath_list = data_dict['filename']
+    assert np.shape(conf_data) == np.shape(top1_data) == np.shape(fg_data),"input conf,distance,fg should be same shape"
+    total_num = float(len(conf_data))
+    #convert to numpy array
+    fg_data = np.array([round(tp,1) for tp in fg_data])
+    top1_data = np.array([round(tp,3) for tp in top1_data])
+    conf_data = np.array([round(tp,2) for tp in conf_data])
+    #get top1_distance < threshold
+    keep_top1_indx = np.where(top1_data<threshold[0])
+    conf_data = conf_data[keep_top1_indx]
+    fg_data = fg_data[keep_top1_indx]
+    real_labels = [real_label_list[i] for i in keep_top1_indx[0]]
+    pred_labels = [pred_label_list[j] for j in keep_top1_indx[0]]
+    org_imgpaths = [org_imgpath_list[k] for k in keep_top1_indx[0]]
+    #get top2-top1 >threshold
+    keep_conf_idx = np.where(conf_data > threshold[1])
+    fg_tmp_data = fg_data[keep_conf_idx]
+    real_labels_final = [real_labels[i] for i in keep_conf_idx[0]]
+    pred_labels_final = [pred_labels[j] for j in keep_conf_idx[0]]
+    org_imgpaths_final = [org_imgpaths[k] for k in keep_conf_idx[0]]
+    #get tpr and fpr numbers for recognition ids
+    tpr_indx = np.where(fg_tmp_data==1)
+    fpr_indx = np.where(fg_tmp_data== -1)
+    tpr_pred_label = [pred_labels_final[i] for i in tpr_indx[0]]
+    fpr_pred_label = [pred_labels_final[j] for j in fpr_indx[0]]
+    #get names according to label
+    name2label = get_label(label_file)
+    label2name = get_invt_dict(name2label)
+    #calculate reg info
+    if len(pred_labels_final)>0:
+        for idx in tqdm(range(len(pred_labels_final))):
+            tmp_real_label = real_labels_final[idx]
+            tmp_pred_label = pred_labels_final[idx]
+            tmp_real_name = label2name[tmp_real_label]
+            tmp_pred_name = label2name[tmp_pred_label]
+            #get input id and recog id for every wrong record
+            if not tmp_real_label == tmp_pred_label:
+                org_img_path = org_imgpaths_final[idx]
+                if not os.path.exists(org_img_path):
+                    continue
+                img_name = org_img_path.split('/')[-1]
+                save_path = os.path.join(save_dir,tmp_pred_name)
+                make_dir(save_path)
+                save_img_path = os.path.join(save_path,img_name)
+                shutil.copyfile(org_img_path,save_img_path)
+                cnt_org = org_id_dict.setdefault(tmp_real_label,0)
+                org_id_dict[tmp_real_label] = cnt_org+1
+                cnt_dest = dest_id_dict.setdefault(tmp_pred_label,0)
+                dest_id_dict[tmp_pred_label] = cnt_dest+1
+                ori_dest_id = org_wrong_dict.setdefault(tmp_real_name,[])
+                if tmp_pred_name in ori_dest_id:
+                    pass
+                else:
+                    org_wrong_dict[tmp_real_name].append(tmp_pred_name)
+        org_id = 0
+        for key_name in org_id_dict.keys():
+            if org_id_dict[key_name] != 0:
+                org_id +=1
+        dest_id = 0
+        for key_name in dest_id_dict.keys():
+            if dest_id_dict[key_name] != 0:
+                dest_id +=1
+        f_result = open("./output/reg_static_result.txt",'w')
+        for key_name in org_wrong_dict.keys():
+            f_result.write("{} : {}".format(key_name,org_wrong_dict[key_name]))
+            f_result.write("\n")
+        print("TPR and FPR is ",len(tpr_indx[0]),len(fpr_indx[0]))
+        print("wrong orignal: ",org_id_dict.values())
+        print("who will be wrong: ",dest_id_dict.values())
+        print("the org and dest: ",org_id,dest_id)
+    else:
+        print("no corresponding record for",threshold)
+    #get test id numbers
+    test_id_sets = set(real_label_list)
+    #get pred id numbers according to threshold
+    pred_id_sets = set(pred_labels_final)
+    tpr_id_sets = set(tpr_pred_label)
+    fpr_id_sets = set(fpr_pred_label)
+    not_reg_id = test_id_sets - pred_id_sets
+    reg_test_id_sets = pred_id_sets & test_id_sets
+    not_reg_names = [label2name[tmp] for tmp in not_reg_id]
+    total_test_ids = len(test_id_sets)
+    reg_ids = len(pred_id_sets)
+    tpr_num = len(tpr_id_sets)
+    fpr_num = len(fpr_id_sets)
+    reg_in_test_num = len(reg_test_id_sets)
+    f_result.write("reg rate of id :%f\n" % (float(reg_in_test_num)/total_test_ids))
+    f_result.write("fpr rate of id :%f\n" % (float(fpr_num)/total_test_ids))
+    f_result.write("precision rate of id :%f\n" % (float(tpr_num)/reg_ids))
+    print("total test ids:",total_test_ids)
+    print("not reg keys: ",not_reg_names)
+    print("right id nums: ",tpr_num)
+    print("wrong reg id nums:",fpr_num)
+    f_result.close()
 
 def test():
     a = [1,2,3,3,4,5]
@@ -493,13 +606,53 @@ def test():
     plt.scatter(a,b,alpha=0.5)
     plt.show()
 
+def static_data_distribe(file_in,file_out,distance=None,num_bins=20):
+    '''
+    #file_in: saved train img path  txt file: /img_path/0.jpg  1188
+    file_in: saved train img path  txt file: /id_label/0.jpg 
+    file_out: output bins and 
+    '''
+    out_name = file_out
+    input_file=open(file_in,'r')
+    out_file=open(file_out,'w')
+    data_arr=[]
+    print(out_name)
+    out_list = out_name.strip()
+    out_list = out_list.split('/')
+    out_name = "./output/"+out_list[-1][:-4]+".png"
+    print(out_name)
+    id_dict_cnt = dict()
+    for line in input_file.readlines():
+        line = line.strip()
+        line_splits = line.split('/')
+        #key_name=string.atoi(line_splits[-1])
+        key_name=string.atoi(line_splits[0])
+        cur_cnt = id_dict_cnt.setdefault(key_name,0)
+        id_dict_cnt[key_name] = cur_cnt +1
+    for key_num in id_dict_cnt.keys():
+        data_arr.append(id_dict_cnt[key_num])
+    data_in=np.asarray(data_arr)
+    if distance is None:
+        max_bin = np.max(data_in)
+    else:
+        max_bin = distance
+    datas,bins,c=plt.hist(data_in,num_bins,range=(0.0,max_bin),normed=0,color='blue',cumulative=0)
+    #a,b,c=plt.hist(data_in,num_bins,normed=1,color='blue',cumulative=1)
+    plt.title('histogram')
+    plt.savefig(out_name, format='png')
+    plt.show()
+    for i in range(num_bins):
+        out_file.write(str(datas[i])+'\t'+str(bins[i])+'\n')
+    input_file.close()
+    out_file.close()
+
 if __name__=='__main__':
     args = params()
     file_path = args.path1
     out_file = args.out_file
     dict_keys = ['filename','blur','left_right','up_down','rotate','cast','da','bbox_face.width','bbox_face.height','distance']
     #file_path = '/home/lxy/Downloads/DataSet/annotations/V2/v2.csv'
-    d2_keys = ['filename','distance','confidence','confidence2','l1_regular','reg_fg']
+    d2_keys = ['filename','distance','confidence','confidence2','l1_regular','reg_fg','real_label','pred_label']
     f2_path = args.path2
     d3_keys = ['filename','distance','reg_fg','l1_regular']
     f3_path = args.path3
@@ -528,4 +681,9 @@ if __name__=='__main__':
     elif args.command == 'tpr':
         dd = read_data(f2_path,d2_keys)
         get_Far_roc(dd,threshold)
+    elif args.command == 'recog':
+        dd = read_data(f2_path,d2_keys)
+        statistics_record(dd,[args.top1_thres,args.conf_thres],args.label_file,save_dir)
+    elif args.command == 'data_static':
+        static_data_distribe(args.path1,args.out_file)
     #test()

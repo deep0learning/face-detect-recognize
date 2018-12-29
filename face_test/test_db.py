@@ -119,10 +119,11 @@ class DB_Test(object):
         data_in = open(self.data_file,'r')
         self.db_lines = db_in.readlines()
         self.data_lines = data_in.readlines()
+        self.test_data_num = len(self.data_lines)
         #dis_record = open("./output/distance_top1.txt",'w')
         self.dis_top2 = open("./output/distance_top2.txt",'w')
         #dis_record.write("filename,distance,l1_regular,reg_fg\n")
-        self.dis_top2.write("filename,distance,confidence,confidence2,l1_regular,reg_fg\n")
+        self.dis_top2.write("filename,distance,confidence,confidence2,l1_regular,reg_fg,real_label,pred_label\n")
         db_in.close()
         data_in.close()
 
@@ -233,7 +234,7 @@ class DB_Test(object):
                 self.test_label_dict[key_que] = 1
                 real_label = self.label_dict.setdefault(key_que,300)+self.base_id
             idx_+=1
-            sys.stdout.write('\r>> deal with %d/%d' % (idx_,len(self.data_lines)))
+            sys.stdout.write('\r>> deal with %d/%d' % (idx_,self.test_data_num))
             sys.stdout.flush()
             if config.face_detect:
                 querry_feat = self.Face_features.extract_f3(querry_line,self.base_dir)
@@ -247,8 +248,11 @@ class DB_Test(object):
                     l1_dis = self.L1_Sum(querry_feat)
                 else:
                     l1_dis = 0
-                idx_list,distance_list = self.DB_FT.findNeatest(querry_feat,3) 
-                #print("distance, idx ",distance,idx)
+                dbtime1 = time.time()
+                idx_list,distance_list = self.DB_FT.findNeatest(querry_feat,3)
+                dbtime2 = time.time()-dbtime1
+                if idx_ > self.test_data_num - 100 :
+                    print("look up table time: ",dbtime2)
                 idx = idx_list[0]
                 img_name = self.db_names[idx] 
                 img_dir = self.save_reg_dirs[idx]
@@ -329,8 +333,8 @@ class DB_Test(object):
                         failed_img_path = os.path.join(failed_img_dir,que_spl[1])
                     shutil.copyfile(org_path,failed_img_path)
                 #self.dis_record.write("%s,%.3f,%.3f,%d\n" %(org_path,distance_list[0],l1_dis,reg_fg))
-                self.dis_top2.write("%s,%.3f,%.3f,%.3f,%.3f,%d\n" %(org_path,distance_list[0], \
-                        distance_list[1] - distance_list[0],distance_list[2] - distance_list[0],l1_dis,reg_fg))
+                self.dis_top2.write("%s,%.3f,%.3f,%.3f,%.3f,%d,%s,%s\n" %(org_path,distance_list[0], \
+                        distance_list[1] - distance_list[0],distance_list[2] - distance_list[0],l1_dis,reg_fg,real_label,pred_label))
         #self.dis_record.close()
         self.dis_top2.close()
     
@@ -368,8 +372,8 @@ class DB_Test(object):
             #print("values: ",db_cnt_dict.values())
             f_result.close()
             print("TPR and FPR is ",self.tpr,self.fpr)
-            print("wrong orignal: ",self.org_id_dict.values())
-            print("who will be wrong: ",self.dest_id_dict.values())
+            #print("wrong orignal: ",self.org_id_dict.values())
+            #print("who will be wrong: ",self.dest_id_dict.values())
             print("the org and dest: ",org_id,dest_id)
         else:
             print("Reg img num: ",self.tpr) 

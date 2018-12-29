@@ -35,7 +35,7 @@ def parms():
                         help='img id')
     parser.add_argument('--out-file',type=str,dest="out_file",default="train.txt",\
                         help='out img paths saved file')
-    parser.add_argument('--cmd-type',type=str,dest="cmd_type",default="gen_label",\
+    parser.add_argument('--cmd-type',type=str,dest="cmd_type",default="None",\
                         help='which code to run: gen_label_pkl, gen_label,merge,gen_filepath_1dir,save_idimgfrom_txt,\
                         hist, imgenhance,gen_idimgfrom_dir,gen_filepath_2dir')
     parser.add_argument('--file2-in',type=str,dest="file2_in",default="train2.txt",\
@@ -379,7 +379,9 @@ def merge2trainfile(file1,file2,file_out):
     for line_one in id_files:
         f_out.write(line_one.strip())
         f_out.write("\n")
-    for line_one in imgs:
+    for idx,line_one in enumerate(imgs):
+        if idx == 10000:
+            break
         f_out.write(line_one.strip())
         f_out.write("\n")
     f1.close()

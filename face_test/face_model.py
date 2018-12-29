@@ -220,8 +220,8 @@ class FaceReg(object):
         _,net_chal,net_h,net_w = self.face_net.blobs['data'].data.shape
         #print("net shape ",net_h,net_w)
         if h !=net_h or w !=net_w:
-            #caffe_img = cv2.resize(img,(net_w,net_h))
-            caffe_img = Img_Pad(img,(net_h,net_w))
+            caffe_img = cv2.resize(img,(net_w,net_h))
+            #caffe_img = Img_Pad(img,(net_h,net_w))
         else:
             caffe_img = img
         if config.feature_expand:

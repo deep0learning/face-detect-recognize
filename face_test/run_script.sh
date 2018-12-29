@@ -13,6 +13,7 @@
 #python gen_file_test.py --img-dir /home/lxy/Downloads/DataSet/Face_reg/HighRailway/id_50000_crop --out-file ./output/id_50000.txt --cmd-type gen_filepath_1dir
 #python gen_file_test.py --img-dir /home/lxy/Downloads/DataSet/Face_reg/HighRailway/id_52611_crop/id_50000_crop --out-file ./output/id_52611.txt --cmd-type gen_filepath_1dir
 python gen_file_test.py --img-dir /home/lxy/Downloads/DataSet/Face_reg/prison_img_test/prison_6244 --out-file ./output/prison_6244.txt --cmd-type gen_filepath_2dir
+#python gen_file_test.py --img-dir /home/lxy/Downloads/DataSet/Face_reg/id_256/id_256_crop --out-file ./output/id_256.txt --cmd-type gen_filepath_1dir
 
 ##test image enhance
 #python gen_file_test.py --img-dir /home/lxy/Downloads/DataSet/Face_reg/prison_img_test/prison_8324/111088/v8324_13043.jpg   --cmd-type imgenhance
@@ -30,4 +31,10 @@ python gen_file_test.py --img-dir /home/lxy/Downloads/DataSet/Face_reg/prison_im
 ## run histgram
 #static distance vs confidence
 #python histogram.py --key-name  distance --path2 ./output/distance_top2.csv   --command static2
-#python histogram.py --key-name  distance --path2 ./output/distance_top2.csv   --command tpr
+#python histogram.py --path2 ./output/distance_top2.csv   --command tpr
+#python histogram.py --path2 ./output/distance_top2.csv --label-file ./output/label_52611.pkl --top1-thres 1.0 --conf-thres 0.15  \
+ #                 --save-dir /home/lxy/Downloads/DataSet/Face_reg/highway_result/static/ --command recog
+python histogram.py --path1 ./output/prison_6244.txt  --out-file ./output/static_prison6244.txt --command data_static
+
+## merge 2 txt file
+#python gen_file_test.py --file-in ./output/id_256.txt --file2-in ./output/id_50000.txt --out-file ./output/id_10256.txt --cmd-type merge
